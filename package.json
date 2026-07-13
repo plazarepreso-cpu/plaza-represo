@@ -1,0 +1,16 @@
+{
+  "name": "plaza-represo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema unificado de contratos, pagos y agenda para Plaza Represo",
+  "scripts": {
+    "test": "node tests/domain.test.js",
+    "preview": "python3 -m http.server 8765",
+    "google:login": "clasp login",
+    "google:push": "clasp push",
+    "google:open": "clasp open"
+  },
+  "devDependencies": {
+    "@google/clasp": "^3.3.0"
+  }
+}
