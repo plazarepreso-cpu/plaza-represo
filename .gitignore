@@ -1,0 +1,26 @@
+# Credenciales y configuración privada
+.env
+.env.*
+.clasp.json
+credentials*.json
+client_secret*.json
+token*.json
+private/
+secrets/
+
+# Identificaciones reales: nunca deben entrar al repositorio
+identificaciones/
+ine-reales/
+**/*INE_REAL*
+**/*ine_real*
+
+# Archivos locales y temporales
+.DS_Store
+node_modules/
+tmp/
+work/
+*.log
+
+# Entregables generados se conservan fuera del código fuente
+outputs/*.png
+

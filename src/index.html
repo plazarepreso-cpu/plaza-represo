@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plaza Represo</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    :root {
+      --ink: #171717;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --paper: #fffdf9;
+      --soft: #fff7ed;
+      --orange: #f59e0b;
+      --orange-dark: #c2410c;
+      --red: #dc2626;
+      --green: #15803d;
+      --shadow: 0 18px 45px rgba(17, 24, 39, .09);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: #f4f4f2; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .app { min-height: 100vh; display: grid; grid-template-columns: 255px 1fr; }
+    .sidebar { position: sticky; top: 0; height: 100vh; color: white; background: linear-gradient(165deg, #0d0d0d 0%, #1f1b16 70%, #492009 100%); padding: 26px 18px; display: flex; flex-direction: column; gap: 24px; }
+    .brand { display: flex; align-items: center; gap: 12px; padding: 0 8px; }
+    .brand-mark { width: 48px; height: 48px; display: grid; place-items: center; border: 2px solid var(--orange); border-radius: 14px; color: var(--orange); font-size: 22px; font-weight: 900; }
+    .brand h1 { font-size: 19px; letter-spacing: .08em; line-height: 1; margin: 0; }
+    .brand span { display: block; margin-top: 5px; color: #fbbf24; font-size: 11px; letter-spacing: .18em; }
+    nav { display: grid; gap: 7px; }
+    .nav-btn { width: 100%; border: 0; border-radius: 12px; background: transparent; color: #d1d5db; padding: 12px 14px; text-align: left; display: flex; align-items: center; gap: 11px; }
+    .nav-btn:hover, .nav-btn.active { background: rgba(245, 158, 11, .15); color: #fff; }
+    .nav-btn.active { box-shadow: inset 3px 0 var(--orange); }
+    .nav-icon { width: 23px; text-align: center; }
+    .side-note { margin-top: auto; border: 1px solid rgba(255,255,255,.11); background: rgba(255,255,255,.05); border-radius: 14px; padding: 13px; color: #d1d5db; font-size: 12px; line-height: 1.45; }
+    main { min-width: 0; }
+    .topbar { height: 78px; padding: 0 32px; background: rgba(255,255,255,.88); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }
+    .topbar h2 { margin: 0; font-size: 21px; }
+    .user-chip { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px 7px 8px; }
+    .avatar { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #111; background: var(--orange); font-weight: 800; }
+    .user-meta { font-size: 12px; line-height: 1.2; }
+    .user-meta strong { display: block; }
+    .user-meta span { color: var(--muted); }
+    .content { padding: 28px 32px 50px; max-width: 1450px; margin: 0 auto; }
+    .view { display: none; }
+    .view.active { display: block; animation: fade .18s ease; }
+    @keyframes fade { from { opacity: .35; transform: translateY(3px); } }
+    .page-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+    .page-head h3 { font-size: 27px; margin: 0 0 4px; }
+    .page-head p { color: var(--muted); margin: 0; }
+    .grid { display: grid; gap: 18px; }
+    .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .card { background: white; border: 1px solid #eceae5; border-radius: 18px; box-shadow: var(--shadow); }
+    .kpi { padding: 20px; position: relative; overflow: hidden; }
+    .kpi::after { content: ""; position: absolute; width: 80px; height: 80px; right: -20px; top: -20px; border-radius: 50%; background: rgba(245,158,11,.12); }
+    .kpi-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    .kpi-value { margin-top: 9px; font-size: 29px; font-weight: 850; letter-spacing: -.03em; }
+    .kpi-detail { color: var(--green); font-size: 12px; margin-top: 5px; }
+    .dashboard-grid { grid-template-columns: 1.6fr 1fr; margin-top: 18px; }
+    .card-head { padding: 18px 20px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+    .card-head h4 { margin: 0; font-size: 16px; }
+    .card-body { padding: 20px; }
+    .btn { border: 0; border-radius: 11px; padding: 10px 15px; font-weight: 750; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-primary { color: #111; background: linear-gradient(135deg, #fbbf24, #f59e0b); box-shadow: 0 7px 18px rgba(245,158,11,.22); }
+    .btn-dark { color: white; background: var(--ink); }
+    .btn-ghost { color: #333; background: white; border: 1px solid var(--line); }
+    .btn-danger { color: white; background: var(--red); }
+    .btn-small { padding: 7px 10px; font-size: 12px; }
+    .list { display: grid; gap: 11px; }
+    .event-item { display: grid; grid-template-columns: 56px 1fr auto; gap: 13px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 13px; }
+    .date-box { padding: 7px 5px; border-radius: 10px; background: var(--soft); text-align: center; color: var(--orange-dark); }
+    .date-box strong { display: block; font-size: 21px; }
+    .date-box span { font-size: 10px; text-transform: uppercase; }
+    .event-item h5 { margin: 0 0 4px; font-size: 14px; }
+    .event-item p { margin: 0; color: var(--muted); font-size: 12px; }
+    .money-row { display: flex; justify-content: space-between; gap: 20px; padding: 10px 0; border-bottom: 1px dashed var(--line); }
+    .money-row:last-child { border: 0; }
+    .money-row span { color: var(--muted); }
+    .money-row strong { white-space: nowrap; }
+    .status { display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 9px; font-size: 10px; font-weight: 850; letter-spacing: .04em; }
+    .status.CONFIRMADO { color: #9a3412; background: #ffedd5; }
+    .status.PAGADO { color: #166534; background: #dcfce7; }
+    .status.CANCELADO { color: #991b1b; background: #fee2e2; }
+    .status.ERROR { color: #7f1d1d; background: #fecaca; }
+    .form-card { padding: 0; overflow: hidden; }
+    .form-section { padding: 23px; border-bottom: 1px solid var(--line); }
+    .form-section:last-child { border: 0; }
+    .section-title { display: flex; align-items: center; gap: 10px; margin-bottom: 17px; }
+    .step { width: 29px; height: 29px; display: grid; place-items: center; color: #111; background: var(--orange); border-radius: 50%; font-weight: 900; }
+    .section-title h4 { margin: 0; }
+    .form-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
+    .field { grid-column: span 4; }
+    .field.half { grid-column: span 6; }
+    .field.full { grid-column: 1 / -1; }
+    label { display: block; font-size: 12px; font-weight: 750; color: #444; margin-bottom: 6px; }
+    input, select, textarea { width: 100%; border: 1px solid #d8d8d5; border-radius: 10px; background: #fff; padding: 10px 11px; color: var(--ink); outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(245,158,11,.12); }
+    textarea { min-height: 78px; resize: vertical; }
+    .upload-box { display: grid; grid-template-columns: 170px 1fr; gap: 18px; padding: 16px; border: 1.5px dashed #d6a34d; border-radius: 14px; background: #fffcf6; }
+    .ine-preview { height: 108px; display: grid; place-items: center; border-radius: 10px; background: #ecebe7; overflow: hidden; color: var(--muted); font-size: 12px; text-align: center; }
+    .ine-preview img { width: 100%; height: 100%; object-fit: cover; }
+    .upload-copy p { color: var(--muted); margin: 5px 0 12px; font-size: 12px; }
+    .warning { padding: 11px 13px; border-left: 4px solid var(--orange); background: #fffbeb; color: #713f12; border-radius: 8px; font-size: 12px; line-height: 1.45; }
+    .preview-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; margin-top: 13px; }
+    .preview-cell { padding: 12px; border-radius: 11px; background: var(--soft); }
+    .preview-cell span { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+    .preview-cell strong { display: block; margin-top: 4px; }
+    .form-actions { display: flex; justify-content: flex-end; gap: 10px; }
+    .table-wrap { overflow: auto; }
+    table.data { width: 100%; border-collapse: collapse; min-width: 790px; }
+    table.data th, table.data td { padding: 13px 15px; border-bottom: 1px solid var(--line); text-align: left; font-size: 12px; }
+    table.data th { color: var(--muted); background: #fafafa; font-size: 10px; letter-spacing: .05em; text-transform: uppercase; }
+    table.data tr:hover td { background: #fffdf8; }
+    .filters { display: flex; gap: 10px; }
+    .filters input { min-width: 250px; }
+    .agenda-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .agenda-card { padding: 18px; border-top: 4px solid var(--orange); }
+    .agenda-card.cancelled { opacity: .65; border-color: var(--red); }
+    .agenda-card .agenda-date { color: var(--orange-dark); font-weight: 850; }
+    .agenda-card h4 { margin: 8px 0 5px; }
+    .agenda-card p { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 4px 0; }
+    .empty { text-align: center; color: var(--muted); padding: 34px 12px; }
+    dialog { width: min(760px, calc(100% - 24px)); max-height: calc(100vh - 30px); border: 0; border-radius: 20px; padding: 0; box-shadow: 0 30px 80px rgba(0,0,0,.28); }
+    dialog::backdrop { background: rgba(17,17,17,.62); backdrop-filter: blur(3px); }
+    .dialog-head { padding: 18px 22px; color: white; background: #171717; display: flex; justify-content: space-between; align-items: center; }
+    .dialog-head h3 { margin: 0; }
+    .dialog-close { color: white; background: transparent; border: 0; font-size: 24px; }
+    .dialog-body { padding: 22px; max-height: 70vh; overflow: auto; }
+    .dialog-actions { padding: 16px 22px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; }
+    .toast { position: fixed; right: 22px; bottom: 22px; z-index: 100; max-width: 390px; padding: 13px 16px; border-radius: 12px; color: white; background: #171717; box-shadow: 0 14px 40px rgba(0,0,0,.24); transform: translateY(130%); transition: .2s; }
+    .toast.show { transform: translateY(0); }
+    .toast.error { background: #991b1b; }
+    .loading { position: fixed; inset: 0; z-index: 200; display: none; place-items: center; background: rgba(255,255,255,.76); backdrop-filter: blur(3px); }
+    .loading.show { display: grid; }
+    .loader { width: 48px; height: 48px; border: 5px solid #eee; border-top-color: var(--orange); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .demo-banner { display: none; margin-bottom: 17px; padding: 12px 14px; border-radius: 12px; color: #7c2d12; background: #ffedd5; border: 1px solid #fed7aa; font-size: 12px; }
+    .demo-banner.show { display: block; }
+    @media (max-width: 1050px) {
+      .app { grid-template-columns: 84px 1fr; }
+      .sidebar { padding: 20px 12px; }
+      .brand h1, .brand span, .nav-label, .side-note { display: none; }
+      .brand { justify-content: center; padding: 0; }
+      .nav-btn { justify-content: center; padding: 13px 8px; }
+      .kpis { grid-template-columns: repeat(2, 1fr); }
+      .agenda-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 720px) {
+      .app { display: block; }
+      .sidebar { position: fixed; z-index: 30; bottom: 0; top: auto; width: 100%; height: 68px; padding: 7px; flex-direction: row; }
+      .brand, .side-note { display: none; }
+      nav { width: 100%; display: flex; justify-content: space-around; }
+      .nav-btn { width: auto; flex: 1; font-size: 11px; flex-direction: column; gap: 2px; padding: 6px 3px; }
+      .nav-label { display: block; }
+      .topbar { height: 66px; padding: 0 15px; }
+      .topbar h2 { font-size: 17px; }
+      .user-meta { display: none; }
+      .content { padding: 20px 14px 92px; }
+      .page-head { align-items: start; flex-direction: column; }
+      .page-head h3 { font-size: 23px; }
+      .kpis, .dashboard-grid, .agenda-grid { grid-template-columns: 1fr; }
+      .field, .field.half { grid-column: 1 / -1; }
+      .upload-box { grid-template-columns: 1fr; }
+      .preview-strip { grid-template-columns: repeat(2, 1fr); }
+      .filters { width: 100%; flex-direction: column; }
+      .filters input { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">PR</div><div><h1>PLAZA REPRESO</h1><span>EVENTOS</span></div></div>
+      <nav>
+        <button class="nav-btn active" data-view="dashboard"><span class="nav-icon">⌂</span><span class="nav-label">Inicio</span></button>
+        <button class="nav-btn owner-only" data-view="new-contract"><span class="nav-icon">＋</span><span class="nav-label">Nuevo contrato</span></button>
+        <button class="nav-btn" data-view="agenda"><span class="nav-icon">▦</span><span class="nav-label">Agenda</span></button>
+        <button class="nav-btn" data-view="contracts"><span class="nav-icon">▤</span><span class="nav-label">Contratos</span></button>
+        <button class="nav-btn" data-view="payments"><span class="nav-icon">$</span><span class="nav-label">Pagos</span></button>
+        <button class="nav-btn" data-view="clients"><span class="nav-icon">●</span><span class="nav-label">Clientes</span></button>
+      </nav>
+      <div class="side-note">La agenda, contratos y saldos se actualizan para todos. Las identificaciones permanecen privadas.</div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <h2 id="viewTitle">Resumen general</h2>
+        <div class="user-chip"><div class="avatar" id="avatar">P</div><div class="user-meta"><strong id="userEmail">Cargando…</strong><span id="userRole">—</span></div></div>
+      </header>
+      <div class="content">
+        <div class="demo-banner" id="demoBanner"><strong>Modo demostración.</strong> Los datos son ficticios y se guardan solo en este navegador. No subas una INE real aquí.</div>
+
+        <section class="view active" id="view-dashboard">
+          <div class="page-head"><div><h3>Buenos días</h3><p>Este es el estado actual de Plaza Represo.</p></div><button class="btn btn-primary owner-only" data-go="new-contract">＋ Crear contrato</button></div>
+          <div class="grid kpis">
+            <div class="card kpi"><div class="kpi-label">Próximos eventos</div><div class="kpi-value" id="kpiEvents">0</div><div class="kpi-detail">Agenda confirmada</div></div>
+            <div class="card kpi"><div class="kpi-label">Contratos activos</div><div class="kpi-value" id="kpiContracts">0</div><div class="kpi-detail">Sin cancelados</div></div>
+            <div class="card kpi"><div class="kpi-label">Total cobrado</div><div class="kpi-value" id="kpiPaid">$0</div><div class="kpi-detail">Pagos registrados</div></div>
+            <div class="card kpi"><div class="kpi-label">Saldo pendiente</div><div class="kpi-value" id="kpiBalance">$0</div><div class="kpi-detail">Por liquidar</div></div>
+          </div>
+          <div class="grid dashboard-grid">
+            <div class="card"><div class="card-head"><h4>Próximos eventos</h4><button class="btn btn-ghost btn-small" data-go="agenda">Ver agenda</button></div><div class="card-body list" id="upcomingList"></div></div>
+            <div class="card"><div class="card-head"><h4>Resumen de cobros</h4></div><div class="card-body" id="paymentSummary"></div></div>
+          </div>
+        </section>
+
+        <section class="view" id="view-new-contract">
+          <div class="page-head"><div><h3>Nuevo contrato</h3><p>Sube la INE, confirma los datos y completa el evento.</p></div><div class="status CONFIRMADO" id="nextNumber">SIGUIENTE C.2625</div></div>
+          <form class="card form-card" id="contractForm">
+            <div class="form-section">
+              <div class="section-title"><div class="step">1</div><h4>Identificación del cliente</h4></div>
+              <div class="upload-box">
+                <div class="ine-preview" id="inePreview">Vista previa<br>de la INE</div>
+                <div class="upload-copy">
+                  <label for="ineFile">Fotografía frontal de la INE</label>
+                  <input type="file" id="ineFile" accept="image/jpeg,image/png,image/webp">
+                  <p>El OCR se ejecuta en este navegador. El sistema nunca acepta los datos sin confirmación.</p>
+                  <button class="btn btn-dark btn-small" type="button" id="ocrButton">Leer nombre y domicilio</button>
+                  <div id="ocrStatus" style="margin-top:8px;color:var(--muted);font-size:12px"></div>
+                </div>
+              </div>
+              <div class="warning" style="margin-top:14px">Durante las pruebas utiliza únicamente identificaciones ficticias. En producción la foto se guardará en la carpeta privada del propietario.</div>
+            </div>
+            <div class="form-section">
+              <div class="section-title"><div class="step">2</div><h4>Confirmar cliente</h4></div>
+              <div class="form-grid">
+                <div class="field half"><label>Nombre completo</label><input name="clientName" required autocomplete="off"></div>
+                <div class="field half"><label>Teléfono</label><input name="phone" required autocomplete="off"></div>
+                <div class="field full"><label>Domicilio</label><input name="address" required autocomplete="off"></div>
+              </div>
+            </div>
+            <div class="form-section">
+              <div class="section-title"><div class="step">3</div><h4>Datos del evento</h4></div>
+              <div class="form-grid">
+                <div class="field"><label>Fecha de elaboración</label><input name="elaborationDate" type="date" required></div>
+                <div class="field"><label>Fecha del evento</label><input name="eventDate" type="date" required></div>
+                <div class="field"><label>Tipo de evento</label><input name="eventType" required placeholder="Ej. Fiesta infantil"></div>
+                <div class="field"><label>Hora de inicio</label><input name="startTime" type="time" required value="18:00"></div>
+                <div class="field"><label>Hora de término</label><input name="endTime" type="time" required value="23:00"></div>
+                <div class="field"><label>Duración</label><input value="5 horas" disabled></div>
+              </div>
+            </div>
+            <div class="form-section">
+              <div class="section-title"><div class="step">4</div><h4>Pago y revisión</h4></div>
+              <div class="form-grid">
+                <div class="field"><label>Pago total</label><input name="total" type="number" min="1" step="0.01" required></div>
+                <div class="field"><label>Abono inicial</label><input name="initialDeposit" type="number" min="0" step="0.01" required></div>
+                <div class="field"><label>Método</label><select name="paymentMethod"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>No indicado</option></select></div>
+                <div class="field full"><label>Motivo si el total cambia de la tarifa</label><input name="overrideReason" placeholder="Déjalo vacío si se usa la tarifa automática"></div>
+              </div>
+              <div class="preview-strip">
+                <div class="preview-cell"><span>Día</span><strong id="previewDay">—</strong></div>
+                <div class="preview-cell"><span>Tarifa automática</span><strong id="previewRate">$0</strong></div>
+                <div class="preview-cell"><span>Abono</span><strong id="previewDeposit">$0</strong></div>
+                <div class="preview-cell"><span>Saldo</span><strong id="previewBalance">$0</strong></div>
+              </div>
+            </div>
+            <div class="form-section form-actions"><button class="btn btn-ghost" type="reset">Limpiar</button><button class="btn btn-primary" type="submit">Revisar y generar contrato</button></div>
+          </form>
+        </section>
+
+        <section class="view" id="view-agenda">
+          <div class="page-head"><div><h3>Agenda compartida</h3><p>Eventos y horarios actualizados desde los contratos.</p></div></div>
+          <div class="grid agenda-grid" id="agendaGrid"></div>
+        </section>
+
+        <section class="view" id="view-contracts">
+          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios.</p></div><div class="filters"><input id="contractSearch" placeholder="Buscar número o cliente"><select id="contractStatus"><option value="">Todos</option><option>CONFIRMADO</option><option>PAGADO</option><option>CANCELADO</option><option>ERROR</option></select></div></div>
+          <div class="card table-wrap"><table class="data"><thead><tr><th>Contrato</th><th>Evento</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th></th></tr></thead><tbody id="contractsBody"></tbody></table></div>
+        </section>
+
+        <section class="view" id="view-payments">
+          <div class="page-head"><div><h3>Pagos y recibos</h3><p>El contrato original se conserva; cada abono genera historial.</p></div></div>
+          <div class="grid dashboard-grid">
+            <form class="card form-card owner-only" id="paymentForm">
+              <div class="card-head"><h4>Registrar abono</h4></div>
+              <div class="card-body form-grid">
+                <div class="field full"><label>Contrato</label><select name="contractId" id="paymentContract" required></select></div>
+                <div class="field half"><label>Fecha</label><input name="date" type="date" required></div>
+                <div class="field half"><label>Cantidad</label><input name="amount" type="number" min="0.01" step="0.01" required></div>
+                <div class="field half"><label>Método</label><select name="method"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option></select></div>
+                <div class="field half"><label>Nota</label><input name="note" value="Abono al contrato"></div>
+                <div class="field full"><button class="btn btn-primary" type="submit" style="width:100%">Guardar y generar recibo</button></div>
+              </div>
+            </form>
+            <div class="card"><div class="card-head"><h4>Movimientos recientes</h4></div><div class="card-body list" id="paymentsList"></div></div>
+          </div>
+        </section>
+
+        <section class="view" id="view-clients">
+          <div class="page-head"><div><h3>Clientes</h3><p>Información contractual sin exponer la fotografía de la INE.</p></div><input id="clientSearch" style="max-width:300px" placeholder="Buscar cliente"></div>
+          <div class="card table-wrap"><table class="data"><thead><tr><th>Nombre</th><th>Domicilio</th><th>Teléfono</th><th>INE privada</th><th>Última actualización</th></tr></thead><tbody id="clientsBody"></tbody></table></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="contractDialog">
+    <form id="editForm" method="dialog">
+      <div class="dialog-head"><h3 id="dialogTitle">Contrato</h3><button class="dialog-close" type="button" id="dialogClose">×</button></div>
+      <div class="dialog-body"><div class="form-grid" id="dialogFields"></div></div>
+      <div class="dialog-actions"><div><button class="btn btn-danger btn-small owner-only" type="button" id="cancelContractButton">Cancelar contrato</button></div><div style="display:flex;gap:8px"><button class="btn btn-ghost" type="button" id="closeContractButton">Cerrar</button><button class="btn btn-primary owner-only" type="submit">Guardar nueva versión</button></div></div>
+    </form>
+  </dialog>
+  <div class="toast" id="toast"></div>
+  <div class="loading" id="loading"><div><div class="loader"></div><div id="loadingText" style="margin-top:12px;font-weight:700">Cargando…</div></div></div>
+
+  <script>
+    const state = { data: null, selectedContract: null, ineDataUrl: '', isDemo: !(window.google && google.script && google.script.run) };
+    const viewTitles = { dashboard: 'Resumen general', 'new-contract': 'Nuevo contrato', agenda: 'Agenda compartida', contracts: 'Contratos', payments: 'Pagos y recibos', clients: 'Clientes' };
+    const money = value => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(value || 0));
+    const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Hermosillo' });
+    const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+    const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+
+    function showLoading(text = 'Cargando…') { document.getElementById('loadingText').textContent = text; document.getElementById('loading').classList.add('show'); }
+    function hideLoading() { document.getElementById('loading').classList.remove('show'); }
+    function toast(message, error = false) { const el = document.getElementById('toast'); el.textContent = message; el.className = `toast show${error ? ' error' : ''}`; setTimeout(() => el.className = 'toast', 3500); }
+
+    function callServer(method, payload) {
+      if (state.isDemo) return Promise.resolve(mockApi(method, payload));
+      return new Promise((resolve, reject) => {
+        const runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(error => reject(new Error(error.message || error)));
+        payload === undefined ? runner[method]() : runner[method](payload);
+      });
+    }
+
+    function mockSeed() {
+      return {
+        user: { email: 'propietario@demo.local', role: 'PROPIETARIO' },
+        config: { weekdayRate: 3500, weekendRate: 4500, eventHours: 5, nextContractNumber: 'C.2625', timeZone: 'America/Hermosillo' },
+        system: { configured: false },
+        contracts: [
+          { id:'demo-1', contractNumber:'C.2623', version:1, status:'CONFIRMADO', elaborationDate:'2026-07-10', eventDate:'2026-07-18', eventDay:'Sábado', startTime:'18:00', endTime:'23:00', eventType:'Fiesta infantil ficticia', clientId:'client-1', clientName:'Mariana Ejemplo Navarro', address:'Calle Demostración 123, Col. Modelo', phone:'000 000 0000', total:4500, initialDeposit:2250, paid:2250, balance:2250, currentPdfFileId:'', updatedAt:'2026-07-10T12:00:00' },
+          { id:'demo-2', contractNumber:'C.2624', version:1, status:'PAGADO', elaborationDate:'2026-07-11', eventDate:'2026-07-24', eventDay:'Viernes', startTime:'19:00', endTime:'00:00', eventType:'Reunión familiar ficticia', clientId:'client-2', clientName:'Carlos Prueba Ortega', address:'Avenida Ejemplo 45, Col. Ensayo', phone:'000 000 0001', total:3500, initialDeposit:1750, paid:3500, balance:0, currentPdfFileId:'', updatedAt:'2026-07-12T10:00:00' }
+        ],
+        clients: [
+          { id:'client-1', name:'Mariana Ejemplo Navarro', address:'Calle Demostración 123, Col. Modelo', phone:'000 000 0000', hasIne:false, updatedAt:'2026-07-10T12:00:00' },
+          { id:'client-2', name:'Carlos Prueba Ortega', address:'Avenida Ejemplo 45, Col. Ensayo', phone:'000 000 0001', hasIne:false, updatedAt:'2026-07-12T10:00:00' }
+        ],
+        payments: [
+          { id:'pay-2', contractId:'demo-2', contractNumber:'C.2624', date:'2026-07-12', amount:1750, method:'Transferencia', note:'Liquidación', createdAt:'2026-07-12T10:00:00' },
+          { id:'pay-1', contractId:'demo-1', contractNumber:'C.2623', date:'2026-07-10', amount:2250, method:'Efectivo', note:'Apartado inicial', createdAt:'2026-07-10T12:00:00' }
+        ]
+      };
+    }
+
+    function getMock() { const saved = localStorage.getItem('plaza-represo-demo-v1'); if (saved) return JSON.parse(saved); const seed = mockSeed(); localStorage.setItem('plaza-represo-demo-v1', JSON.stringify(seed)); return seed; }
+    function saveMock(data) { localStorage.setItem('plaza-represo-demo-v1', JSON.stringify(data)); }
+    function mockApi(method, payload) {
+      const db = getMock();
+      if (method === 'getBootstrapData') return db;
+      if (method === 'createContract') {
+        if (db.contracts.some(c => c.eventDate === payload.eventDate && c.status !== 'CANCELADO')) throw new Error('La fecha seleccionada ya está ocupada.');
+        const number = db.config.nextContractNumber; const next = Number(number.split('.')[1]) + 1;
+        const total = Number(payload.total); const paid = Number(payload.initialDeposit);
+        const clientId = uuid(); const contract = { ...payload, id:uuid(), clientId, contractNumber:number, version:1, eventDay:dayName(payload.eventDate), status:total-paid===0?'PAGADO':'CONFIRMADO', total, initialDeposit:paid, paid, balance:total-paid, updatedAt:new Date().toISOString(), currentPdfFileId:'' };
+        delete contract.ineDataUrl; db.contracts.push(contract); db.clients.push({ id:clientId, name:payload.clientName, address:payload.address, phone:payload.phone, hasIne:Boolean(state.ineDataUrl), updatedAt:contract.updatedAt });
+        if (paid) db.payments.unshift({ id:uuid(), contractId:contract.id, contractNumber:number, date:payload.elaborationDate, amount:paid, method:payload.paymentMethod, note:'Apartado inicial', createdAt:contract.updatedAt });
+        db.config.nextContractNumber = `C.${String(next).padStart(4,'0')}`; saveMock(db); return contract;
+      }
+      if (method === 'addPayment') {
+        const contract = db.contracts.find(c => c.id === payload.contractId); const amount = Number(payload.amount);
+        if (!contract || amount <= 0 || amount > Number(contract.balance)) throw new Error('El abono no es válido.');
+        contract.paid += amount; contract.balance -= amount; contract.status = contract.balance === 0 ? 'PAGADO' : 'CONFIRMADO'; contract.updatedAt = new Date().toISOString();
+        db.payments.unshift({ ...payload, id:uuid(), amount, contractNumber:contract.contractNumber, createdAt:contract.updatedAt }); saveMock(db); return { contract };
+      }
+      if (method === 'updateContract') {
+        const index = db.contracts.findIndex(c => c.id === payload.id); if (index < 0) throw new Error('Contrato no encontrado.');
+        if (db.contracts.some(c => c.id !== payload.id && c.eventDate === payload.eventDate && c.status !== 'CANCELADO')) throw new Error('La fecha seleccionada ya está ocupada.');
+        const old = db.contracts[index]; const total = Number(payload.total); if (total < old.paid) throw new Error('El total no puede ser menor que lo pagado.');
+        db.contracts[index] = { ...old, ...payload, total, balance:total-old.paid, status:total-old.paid===0?'PAGADO':'CONFIRMADO', eventDay:dayName(payload.eventDate), version:Number(old.version)+1, updatedAt:new Date().toISOString() }; saveMock(db); return db.contracts[index];
+      }
+      if (method === 'cancelContract') { const contract = db.contracts.find(c => c.id === payload.id); contract.status='CANCELADO'; contract.cancelReason=payload.reason; saveMock(db); return contract; }
+      throw new Error(`Operación no disponible en demostración: ${method}`);
+    }
+
+    function dayName(dateText) { if (!dateText) return '—'; return ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][new Date(`${dateText}T12:00:00`).getDay()]; }
+    function rateFor(dateText) { const day = new Date(`${dateText}T12:00:00`).getDay(); return (day===0||day===6) ? state.data.config.weekendRate : state.data.config.weekdayRate; }
+    function dateParts(dateText) { const d = new Date(`${dateText}T12:00:00`); return { day:String(d.getDate()).padStart(2,'0'), month:d.toLocaleDateString('es-MX',{month:'short'}).replace('.','') }; }
+    function activeContracts() { return state.data.contracts.filter(c => c.status !== 'CANCELADO'); }
+
+    async function bootstrap() {
+      showLoading('Preparando el panel…');
+      try { state.data = await callServer('getBootstrapData'); renderAll(); }
+      catch (error) { toast(error.message, true); document.getElementById('upcomingList').innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`; }
+      finally { hideLoading(); }
+    }
+
+    function renderAll() {
+      const { user } = state.data;
+      document.getElementById('userEmail').textContent = user.email;
+      document.getElementById('userRole').textContent = user.role === 'PROPIETARIO' ? 'Propietario' : 'Solo consulta';
+      document.getElementById('avatar').textContent = user.role === 'PROPIETARIO' ? 'P' : 'C';
+      document.getElementById('demoBanner').classList.toggle('show', state.isDemo);
+      document.querySelectorAll('.owner-only').forEach(el => el.style.display = user.role === 'PROPIETARIO' ? '' : 'none');
+      document.getElementById('nextNumber').textContent = `SIGUIENTE ${state.data.config.nextContractNumber}`;
+      renderDashboard(); renderAgenda(); renderContracts(); renderPayments(); renderClients();
+    }
+
+    function renderDashboard() {
+      const contracts = activeContracts(); const future = contracts.filter(c => c.eventDate >= today());
+      const paid = contracts.reduce((sum,c)=>sum+Number(c.paid),0); const balance = contracts.reduce((sum,c)=>sum+Number(c.balance),0); const totals = contracts.reduce((sum,c)=>sum+Number(c.total),0);
+      document.getElementById('kpiEvents').textContent = future.length; document.getElementById('kpiContracts').textContent = contracts.length; document.getElementById('kpiPaid').textContent = money(paid); document.getElementById('kpiBalance').textContent = money(balance);
+      document.getElementById('upcomingList').innerHTML = future.slice(0,5).map(c => { const d=dateParts(c.eventDate); return `<div class="event-item"><div class="date-box"><strong>${d.day}</strong><span>${d.month}</span></div><div><h5>${escapeHtml(c.clientName)}</h5><p>${escapeHtml(c.eventType)} · ${escapeHtml(c.startTime)}–${escapeHtml(c.endTime)}</p></div><span class="status ${c.status}">${c.status}</span></div>`; }).join('') || '<div class="empty">No hay eventos próximos.</div>';
+      document.getElementById('paymentSummary').innerHTML = `<div class="money-row"><span>Contratado</span><strong>${money(totals)}</strong></div><div class="money-row"><span>Pagado</span><strong style="color:var(--green)">${money(paid)}</strong></div><div class="money-row"><span>Pendiente</span><strong style="color:var(--red)">${money(balance)}</strong></div><div style="height:9px;background:#f1f1ef;border-radius:99px;overflow:hidden;margin-top:18px"><div style="height:100%;width:${totals ? Math.round(paid/totals*100) : 0}%;background:linear-gradient(90deg,var(--orange),var(--green))"></div></div>`;
+    }
+
+    function renderAgenda() {
+      const sorted = [...state.data.contracts].sort((a,b)=>a.eventDate.localeCompare(b.eventDate));
+      document.getElementById('agendaGrid').innerHTML = sorted.map(c => `<article class="card agenda-card ${c.status==='CANCELADO'?'cancelled':''}"><div class="agenda-date">${escapeHtml(c.eventDay)} · ${escapeHtml(c.eventDate)}</div><h4>${escapeHtml(c.contractNumber)} — ${escapeHtml(c.clientName)}</h4><p><strong>${escapeHtml(c.startTime)} a ${escapeHtml(c.endTime)}</strong> · ${escapeHtml(c.eventType)}</p><p>Pagado ${money(c.paid)} · Saldo ${money(c.balance)}</p><span class="status ${c.status}">${c.status}</span></article>`).join('') || '<div class="empty">No hay eventos.</div>';
+    }
+
+    function renderContracts() {
+      const query = document.getElementById('contractSearch').value.toLowerCase(); const status = document.getElementById('contractStatus').value;
+      const rows = state.data.contracts.filter(c => (!query || `${c.contractNumber} ${c.clientName}`.toLowerCase().includes(query)) && (!status || c.status===status));
+      document.getElementById('contractsBody').innerHTML = rows.map(c => `<tr><td><strong>${escapeHtml(c.contractNumber)}</strong><br><small>Versión ${c.version}</small></td><td>${escapeHtml(c.eventDate)}<br><small>${escapeHtml(c.startTime)}–${escapeHtml(c.endTime)}</small></td><td>${escapeHtml(c.clientName)}</td><td>${money(c.total)}</td><td>${money(c.paid)}</td><td><strong>${money(c.balance)}</strong></td><td><span class="status ${c.status}">${c.status}</span></td><td><button class="btn btn-ghost btn-small" onclick="openContract('${c.id}')">Ver</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">No se encontraron contratos.</td></tr>';
+    }
+
+    function renderPayments() {
+      const options = activeContracts().filter(c => Number(c.balance)>0).map(c => `<option value="${c.id}">${escapeHtml(c.contractNumber)} · ${escapeHtml(c.clientName)} · saldo ${money(c.balance)}</option>`).join('');
+      document.getElementById('paymentContract').innerHTML = options || '<option value="">No hay saldos pendientes</option>';
+      document.getElementById('paymentsList').innerHTML = state.data.payments.slice(0,12).map(p => `<div class="money-row"><div><strong>${escapeHtml(p.contractNumber)}</strong><br><small>${escapeHtml(p.date)} · ${escapeHtml(p.method || '')}</small></div><strong style="color:var(--green)">${money(p.amount)}</strong></div>`).join('') || '<div class="empty">No hay pagos registrados.</div>';
+    }
+
+    function renderClients() {
+      const query = document.getElementById('clientSearch').value.toLowerCase(); const clients = state.data.clients.filter(c => !query || `${c.name} ${c.phone}`.toLowerCase().includes(query));
+      document.getElementById('clientsBody').innerHTML = clients.map(c => `<tr><td><strong>${escapeHtml(c.name)}</strong></td><td>${escapeHtml(c.address)}</td><td>${escapeHtml(c.phone)}</td><td>${c.hasIne ? '<span class="status CONFIRMADO">RESGUARDADA</span>' : '<span style="color:var(--muted)">No guardada</span>'}</td><td>${escapeHtml(String(c.updatedAt||'').slice(0,10))}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">No se encontraron clientes.</td></tr>';
+    }
+
+    function switchView(name) { document.querySelectorAll('.view').forEach(v=>v.classList.remove('active')); document.getElementById(`view-${name}`).classList.add('active'); document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===name)); document.getElementById('viewTitle').textContent=viewTitles[name]; window.scrollTo({top:0,behavior:'smooth'}); }
+
+    function updatePaymentPreview() {
+      const form = document.getElementById('contractForm'); const date=form.eventDate.value; if (!date) return;
+      const rate=rateFor(date); if (!form.total.dataset.edited) form.total.value=rate; const total=Number(form.total.value||0); const deposit=Number(form.initialDeposit.value||0);
+      document.getElementById('previewDay').textContent=dayName(date); document.getElementById('previewRate').textContent=money(rate); document.getElementById('previewDeposit').textContent=money(deposit); document.getElementById('previewBalance').textContent=money(Math.max(0,total-deposit));
+    }
+
+    async function fileToCompressedDataUrl(file) {
+      const image = await createImageBitmap(file); const max=1800; const scale=Math.min(1,max/Math.max(image.width,image.height)); const canvas=document.createElement('canvas'); canvas.width=Math.round(image.width*scale); canvas.height=Math.round(image.height*scale); canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height); return canvas.toDataURL('image/jpeg',.82);
+    }
+
+    function extractIneFields(text) {
+      const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean); const upper=lines.map(l=>l.toUpperCase()); let name='',address='';
+      const nameIndex=upper.findIndex(l=>l.includes('NOMBRE')); if(nameIndex>=0) name=lines.slice(nameIndex+1,nameIndex+4).filter((_,i)=>!upper[nameIndex+1+i]?.match(/DOMICILIO|SEXO|CLAVE|CURP|FECHA/)).join(' ');
+      const addressIndex=upper.findIndex(l=>l.includes('DOMICILIO')); if(addressIndex>=0) address=lines.slice(addressIndex+1,addressIndex+4).filter((_,i)=>!upper[addressIndex+1+i]?.match(/CLAVE|CURP|FECHA|SEXO|ELECTOR/)).join(' ');
+      return { name:name.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ .'-]/g,' ').replace(/\s+/g,' ').trim(), address:address.replace(/\s+/g,' ').trim() };
+    }
+
+    function openContract(id) {
+      const contract=state.data.contracts.find(c=>c.id===id); state.selectedContract=contract; document.getElementById('dialogTitle').textContent=`${contract.contractNumber} · ${contract.status}`;
+      const editable=state.data.user.role==='PROPIETARIO' && contract.status!=='CANCELADO';
+      const fields=[['clientName','Nombre',contract.clientName,'text'],['phone','Teléfono',contract.phone,'text'],['address','Domicilio',contract.address,'text'],['elaborationDate','Elaboración',contract.elaborationDate,'date'],['eventDate','Fecha del evento',contract.eventDate,'date'],['eventType','Tipo de evento',contract.eventType,'text'],['startTime','Inicio',contract.startTime,'time'],['endTime','Término',contract.endTime,'time'],['total','Pago total',contract.total,'number'],['overrideReason','Motivo de tarifa especial',contract.overrideReason||'','text']];
+      document.getElementById('dialogFields').innerHTML=`<input type="hidden" name="id" value="${contract.id}">`+fields.map(([name,label,value,type],i)=>`<div class="field ${name==='address'||name==='overrideReason'?'full':(i<2?'half':'')} "><label>${label}</label><input name="${name}" type="${type}" value="${escapeHtml(value)}" ${editable?'':'disabled'}></div>`).join('')+`<div class="field full warning">Pagado: <strong>${money(contract.paid)}</strong> · Saldo: <strong>${money(contract.balance)}</strong> · Versión actual: <strong>${contract.version}</strong></div>`;
+      document.getElementById('cancelContractButton').style.display=editable?'':'none'; document.querySelector('#editForm button[type="submit"]').style.display=editable?'':'none'; document.getElementById('contractDialog').showModal();
+    }
+
+    async function refresh(message) { state.data=await callServer('getBootstrapData'); renderAll(); if(message) toast(message); }
+
+    document.querySelectorAll('[data-view]').forEach(btn=>btn.addEventListener('click',()=>switchView(btn.dataset.view)));
+    document.querySelectorAll('[data-go]').forEach(btn=>btn.addEventListener('click',()=>switchView(btn.dataset.go)));
+    document.getElementById('contractSearch').addEventListener('input',renderContracts); document.getElementById('contractStatus').addEventListener('change',renderContracts); document.getElementById('clientSearch').addEventListener('input',renderClients);
+    document.getElementById('dialogClose').onclick=document.getElementById('closeContractButton').onclick=()=>document.getElementById('contractDialog').close();
+    document.getElementById('paymentForm').date.value=today(); document.getElementById('contractForm').elaborationDate.value=today();
+    ['eventDate','initialDeposit'].forEach(name=>document.getElementById('contractForm')[name].addEventListener('input',updatePaymentPreview)); document.getElementById('contractForm').total.addEventListener('input',e=>{e.target.dataset.edited='true';updatePaymentPreview();});
+
+    document.getElementById('ineFile').addEventListener('change',async event=>{ const file=event.target.files[0]; if(!file)return; state.ineDataUrl=await fileToCompressedDataUrl(file); document.getElementById('inePreview').innerHTML=`<img src="${state.ineDataUrl}" alt="Vista previa de identificación ficticia">`; });
+    document.getElementById('ocrButton').addEventListener('click',async()=>{ if(!state.ineDataUrl)return toast('Selecciona primero una imagen ficticia.',true); if(!window.Tesseract)return toast('El OCR no pudo cargarse. Captura los datos manualmente.',true); showLoading('Leyendo la identificación…'); try { const result=await Tesseract.recognize(state.ineDataUrl,'spa',{logger:m=>{ if(m.status)document.getElementById('ocrStatus').textContent=`${m.status} ${m.progress?Math.round(m.progress*100)+'%':''}`; }}); const fields=extractIneFields(result.data.text); const form=document.getElementById('contractForm'); if(fields.name)form.clientName.value=fields.name;if(fields.address)form.address.value=fields.address; toast('Lectura terminada. Confirma y corrige los datos.'); } catch(error){toast(`No se pudo leer: ${error.message}`,true);} finally{hideLoading();} });
+
+    document.getElementById('contractForm').addEventListener('reset',()=>{state.ineDataUrl='';setTimeout(()=>{document.getElementById('inePreview').innerHTML='Vista previa<br>de la INE';document.getElementById('contractForm').elaborationDate.value=today();delete document.getElementById('contractForm').total.dataset.edited;updatePaymentPreview();},0);});
+    document.getElementById('contractForm').addEventListener('submit',async event=>{event.preventDefault();const form=new FormData(event.target);const payload=Object.fromEntries(form.entries());payload.total=Number(payload.total);payload.initialDeposit=Number(payload.initialDeposit);payload.requestId=uuid();payload.ineDataUrl=state.ineDataUrl;showLoading('Generando contrato, carpeta y agenda…');try{await callServer('createContract',payload);event.target.reset();await refresh('Contrato generado correctamente.');switchView('contracts');}catch(error){toast(error.message,true);}finally{hideLoading();}});
+    document.getElementById('paymentForm').addEventListener('submit',async event=>{event.preventDefault();const payload=Object.fromEntries(new FormData(event.target).entries());payload.amount=Number(payload.amount);showLoading('Registrando pago y generando recibo…');try{await callServer('addPayment',payload);event.target.reset();event.target.date.value=today();await refresh('Pago y recibo guardados.');}catch(error){toast(error.message,true);}finally{hideLoading();}});
+    document.getElementById('editForm').addEventListener('submit',async event=>{event.preventDefault();const payload=Object.fromEntries(new FormData(event.target).entries());payload.total=Number(payload.total);showLoading('Creando nueva versión…');try{await callServer('updateContract',payload);document.getElementById('contractDialog').close();await refresh('Contrato actualizado sin borrar la versión anterior.');}catch(error){toast(error.message,true);}finally{hideLoading();}});
+    document.getElementById('cancelContractButton').addEventListener('click',async()=>{const reason=prompt('Motivo de cancelación:');if(!reason)return;showLoading('Marcando contrato como cancelado…');try{await callServer('cancelContract',{id:state.selectedContract.id,reason});document.getElementById('contractDialog').close();await refresh('Contrato cancelado y fecha liberada.');}catch(error){toast(error.message,true);}finally{hideLoading();}});
+
+    window.openContract=openContract;
+    bootstrap();
+  </script>
+</body>
+</html>
