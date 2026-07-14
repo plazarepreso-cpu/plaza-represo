@@ -17,10 +17,10 @@ ine-reales/
 # Archivos locales y temporales
 .DS_Store
 node_modules/
+__pycache__/
 tmp/
 work/
 *.log
 
 # Entregables generados se conservan fuera del código fuente
 outputs/*.png
-
