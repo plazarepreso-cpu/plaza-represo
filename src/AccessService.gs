@@ -29,30 +29,13 @@ function getAccessUsers() {
 }
 
 function grantDataAccess_(email) {
-  const props = PropertiesService.getScriptProperties();
-  const spreadsheetId = props.getProperty('SPREADSHEET_ID');
-  const contractsFolderId = props.getProperty('CONTRACTS_FOLDER_ID');
-  if (!spreadsheetId || !contractsFolderId) throw new Error('El sistema todavía no está configurado.');
-
-  const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
-  const contractsFolder = DriveApp.getFolderById(contractsFolderId);
-  try {
-    spreadsheet.addViewer(email);
-    contractsFolder.addViewer(email);
-  } catch (error) {
-    try { spreadsheet.removeViewer(email); } catch (ignored) {}
-    try { contractsFolder.removeViewer(email); } catch (ignored) {}
-    throw new Error(`No se pudo compartir el acceso con ${email}: ${error.message || error}`);
-  }
+  // Se mantiene este nombre para instalaciones antiguas, pero ya no comparte
+  // la hoja ni Drive. La única concesión permitida es la Agenda de equipo.
+  return grantAgendaOnlyAccess_(email);
 }
 
 function revokeDataAccess_(email) {
-  const props = PropertiesService.getScriptProperties();
-  const spreadsheetId = props.getProperty('SPREADSHEET_ID');
-  const contractsFolderId = props.getProperty('CONTRACTS_FOLDER_ID');
-  if (!spreadsheetId || !contractsFolderId) throw new Error('El sistema todavía no está configurado.');
-  SpreadsheetApp.openById(spreadsheetId).removeViewer(email);
-  DriveApp.getFolderById(contractsFolderId).removeViewer(email);
+  return revokeAgendaOnlyAccess_(email);
 }
 
 function grantViewerAccess(payload) {
@@ -64,22 +47,33 @@ function grantViewerAccess(payload) {
   lock.waitLock(30000);
   try {
     ensureSchema_();
+    if (typeof migrateExistingViewerAccessToAgendaOnly_ === 'function') {
+      migrateExistingViewerAccessToAgendaOnly_();
+    }
     const existing = listObjects_('Usuarios').find(user =>
       String(user.email || '').trim().toLowerCase() === email
     );
     if (existing && String(existing.role) === APP_CONFIG.ROLE_OWNER) {
       throw new Error('No se puede modificar otra cuenta propietaria desde este panel.');
     }
-
-    grantDataAccess_(email);
-    if (existing) {
-      updateObject_('Usuarios', 'email', existing.email, {
-        email,
-        role: APP_CONFIG.ROLE_VIEWER,
-        active: true
-      });
-    } else {
-      appendObject_('Usuarios', { email, role: APP_CONFIG.ROLE_VIEWER, active: true });
+    let shared = false;
+    try {
+      grantDataAccess_(email);
+      shared = true;
+      if (existing) {
+        updateObject_('Usuarios', 'email', existing.email, {
+          email,
+          role: APP_CONFIG.ROLE_VIEWER,
+          active: true
+        });
+      } else {
+        appendObject_('Usuarios', { email, role: APP_CONFIG.ROLE_VIEWER, active: true });
+      }
+    } catch (error) {
+      if (shared) {
+        try { revokeDataAccess_(email); } catch (ignored) {}
+      }
+      throw error;
     }
     try { audit_('CONCEDER_ACCESO', 'Usuario', email, { role: APP_CONFIG.ROLE_VIEWER }); }
     catch (ignored) {}
@@ -105,14 +99,14 @@ function revokeViewerAccess(payload) {
       throw new Error('No se puede retirar otra cuenta propietaria desde este panel.');
     }
 
-    updateObject_('Usuarios', 'email', existing.email, { active: false });
     try {
       revokeDataAccess_(email);
     } catch (error) {
       try { audit_('ERROR_RETIRAR_RECURSOS', 'Usuario', email, { message: error.message }); }
       catch (ignored) {}
-      throw new Error(`La cuenta fue bloqueada en el panel, pero no se pudo retirar todo su acceso a Drive: ${error.message || error}`);
+      throw new Error(`No se pudo retirar todo el acceso de agenda y recursos privados: ${error.message || error}`);
     }
+    updateObject_('Usuarios', 'email', existing.email, { active: false });
     try { audit_('RETIRAR_ACCESO', 'Usuario', email, {}); }
     catch (ignored) {}
     return listAccessUsers_();

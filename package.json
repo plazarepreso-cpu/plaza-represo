@@ -4,9 +4,9 @@
   "private": true,
   "description": "Sistema unificado de contratos, pagos y agenda para Plaza Represo",
   "scripts": {
-    "test": "node tests/domain.test.js && node tests/security.test.js && node tests/repository.test.js && node tests/access.test.js && node tests/calendar.test.js && node tests/historical-import.test.js && node tests/file-index.test.js && node tests/historical-ine.test.js && node tests/contract-service.test.js && node tests/automation.test.js && node tests/ui.test.js",
+    "test": "node tests/domain.test.js && node tests/security.test.js && node tests/agenda-only-bootstrap.test.js && node tests/team-agenda.test.js && node tests/repository.test.js && node tests/access.test.js && node tests/calendar.test.js && node tests/historical-import.test.js && node tests/file-index.test.js && node tests/historical-ine.test.js && node tests/contract-service.test.js && node tests/automation.test.js && node tests/ui.test.js",
     "test:domain": "node tests/domain.test.js",
-    "test:services": "node tests/security.test.js && node tests/repository.test.js && node tests/access.test.js && node tests/calendar.test.js && node tests/historical-import.test.js && node tests/file-index.test.js && node tests/historical-ine.test.js && node tests/contract-service.test.js && node tests/automation.test.js",
+    "test:services": "node tests/security.test.js && node tests/agenda-only-bootstrap.test.js && node tests/team-agenda.test.js && node tests/repository.test.js && node tests/access.test.js && node tests/calendar.test.js && node tests/historical-import.test.js && node tests/file-index.test.js && node tests/historical-ine.test.js && node tests/contract-service.test.js && node tests/automation.test.js",
     "test:ui": "node tests/ui.test.js",
     "preview": "python3 -m http.server 8765",
     "google:login": "clasp login",

@@ -1,8 +1,62 @@
+const TEAM_VIEWERS_PROPERTY_ = 'TEAM_VIEWER_EMAILS';
+const AGENDA_ONLY_ACCESS_ENABLED_PROPERTY_ = 'AGENDA_ONLY_ACCESS_ENABLED';
+
+/**
+ * La lista de consulta vive fuera de la base privada. Así una persona que solo
+ * ve la agenda puede autenticarse sin recibir permiso de lectura a Sheets.
+ */
+function listAgendaOnlyViewerEmails_() {
+  const raw = String(
+    PropertiesService.getScriptProperties().getProperty(TEAM_VIEWERS_PROPERTY_) || '[]'
+  ).trim();
+  let values = [];
+  try { values = JSON.parse(raw); }
+  catch (error) { return []; }
+  if (!Array.isArray(values)) return [];
+  return Array.from(new Set(values
+    .map(value => String(value || '').trim().toLowerCase())
+    .filter(email => email && email.includes('@'))));
+}
+
+function setAgendaOnlyViewerEmails_(emails) {
+  const normalized = Array.from(new Set((emails || [])
+    .map(value => String(value || '').trim().toLowerCase())
+    .filter(email => email && email.includes('@'))));
+  PropertiesService.getScriptProperties().setProperty(
+    TEAM_VIEWERS_PROPERTY_, JSON.stringify(normalized)
+  );
+  return normalized;
+}
+
+function isAgendaOnlyAccessEnabled_() {
+  return String(
+    PropertiesService.getScriptProperties().getProperty(AGENDA_ONLY_ACCESS_ENABLED_PROPERTY_) || ''
+  ).trim().toLowerCase() === 'true';
+}
+
 function currentUser_() {
   const email = String(Session.getActiveUser().getEmail() || '').trim().toLowerCase();
   if (!email) {
     throw new Error('Google no proporcionó tu identidad. Abre la aplicación con una sola cuenta Google y autoriza el acceso.');
   }
+
+  const properties = PropertiesService.getScriptProperties();
+  const ownerEmail = String(properties.getProperty('OWNER_EMAIL') || '').trim().toLowerCase();
+  if (ownerEmail && email === ownerEmail) return { email, role: APP_CONFIG.ROLE_OWNER };
+
+  // Esta comprobación nunca abre la hoja privada. Es la ruta segura de las
+  // cuentas de consulta después de retirarles Drive y Sheets.
+  if (listAgendaOnlyViewerEmails_().includes(email)) {
+    return { email, role: APP_CONFIG.ROLE_VIEWER };
+  }
+
+  // La instalación anterior usaba la hoja para autorizar consulta. Se conserva
+  // únicamente mientras se migra; una vez activado el modo agenda, nadie fuera
+  // de la lista anterior puede volver a leer la base por esta vía.
+  if (isAgendaOnlyAccessEnabled_()) {
+    throw new Error('Esta cuenta no está autorizada para Plaza Represo.');
+  }
+
   const user = listObjects_('Usuarios').find(item =>
     String(item.email).trim().toLowerCase() === email && isActiveUserValue_(item.active)
   );

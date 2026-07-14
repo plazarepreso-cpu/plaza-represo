@@ -235,7 +235,17 @@ function syncAgendaFromCalendars_() {
   const unique = Array.from(new Map(records.map(record => [record.id, record])).values())
     .sort((a, b) => `${a.eventDate} ${a.startTime}`.localeCompare(`${b.eventDate} ${b.startTime}`));
   replaceObjects_('Agenda', unique);
+  // La agenda de equipo se actualiza desde estos mismos registros, pero solo
+  // recibe horarios genéricos. Si todavía no se creó, no se fuerza aquí.
+  if (typeof getTeamAgendaCalendar_ === 'function' && getTeamAgendaCalendar_()) {
+    syncTeamAgendaFromRecords_(unique);
+  }
   return { synced: unique.length, calendars: readableCalendars, errors };
+}
+
+function syncTeamAgendaAfterCalendarChange_() {
+  if (typeof getTeamAgendaCalendar_ !== 'function' || !getTeamAgendaCalendar_()) return null;
+  return syncAgendaFromCalendars_();
 }
 
 function syncAgendaNow() {

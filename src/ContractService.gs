@@ -1,5 +1,20 @@
 function getBootstrapData() {
   const user = currentUser_();
+  // CONSULTA no abre la hoja privada ni recibe listas que puedan revelar
+  // clientes, contratos, montos, enlaces o configuración interna.
+  if (user.role !== APP_CONFIG.ROLE_OWNER) {
+    return {
+      user,
+      agendaOnly: true,
+      agendaUrl: typeof teamAgendaUrl_ === 'function' ? teamAgendaUrl_() : ''
+    };
+  }
+
+  let accessMigrationWarning = '';
+  if (typeof migrateExistingViewerAccessToAgendaOnly_ === 'function') {
+    try { migrateExistingViewerAccessToAgendaOnly_(); }
+    catch (error) { accessMigrationWarning = String(error.message || error); }
+  }
   const contracts = listObjects_('Contratos')
     .filter(item => item.status !== 'GENERANDO')
     .map(stripPrivateContractFields_)
@@ -17,9 +32,9 @@ function getBootstrapData() {
     try { automation = getAutomationStatus_(); }
     catch (error) { automation.error = String(error.message || error); }
   }
-  return {
+  const data = {
     user,
-    users: user.role === APP_CONFIG.ROLE_OWNER ? listAccessUsers_() : [],
+    users: listAccessUsers_(),
     config: {
       weekdayRate: Number(getSetting_('WEEKDAY_RATE', APP_CONFIG.WEEKDAY_RATE)),
       weekendRate: Number(getSetting_('WEEKEND_RATE', APP_CONFIG.WEEKEND_RATE)),
@@ -39,6 +54,8 @@ function getBootstrapData() {
     system: getSystemInfo_(),
     automation
   };
+  if (accessMigrationWarning) data.accessMigrationWarning = accessMigrationWarning;
+  return data;
 }
 
 function createContract(payload) {
@@ -147,6 +164,13 @@ function createContract(payload) {
     }
     contract.updatedAt = nowIso_();
     contract = updateObject_('Contratos', 'id', contractId, contract);
+    if (typeof syncTeamAgendaAfterCalendarChange_ === 'function') {
+      try { syncTeamAgendaAfterCalendarChange_(); }
+      catch (teamAgendaError) {
+        try { audit_('AGENDA_EQUIPO_PENDIENTE', 'Contrato', contractId, { message: teamAgendaError.message }); }
+        catch (ignored) {}
+      }
+    }
     try { audit_('CREAR_CONTRATO', 'Contrato', contractId, { contractNumber, version: 1, calendarPending }); }
     catch (ignored) {}
     return contract;
@@ -228,6 +252,13 @@ function updateContract(payload) {
     catch (repairError) {
       try { audit_('ERROR_REPARAR_RECIBO_INICIAL', 'Contrato', existing.id, { message: repairError.message }); }
       catch (ignored) {}
+    }
+    if (typeof syncTeamAgendaAfterCalendarChange_ === 'function') {
+      try { syncTeamAgendaAfterCalendarChange_(); }
+      catch (teamAgendaError) {
+        try { audit_('AGENDA_EQUIPO_PENDIENTE', 'Contrato', existing.id, { message: teamAgendaError.message }); }
+        catch (ignored) {}
+      }
     }
     try { audit_('ACTUALIZAR_CONTRATO', 'Contrato', existing.id, { version: updated.version, calendarPending, initialPaymentRepaired }); }
     catch (ignored) {}
@@ -542,6 +573,13 @@ function cancelContract(payload) {
     } catch (calendarError) {
       calendarPending = true;
       try { audit_('CALENDARIO_PENDIENTE', 'Contrato', contract.id, { message: calendarError.message }); } catch (ignored) {}
+    }
+    if (typeof syncTeamAgendaAfterCalendarChange_ === 'function') {
+      try { syncTeamAgendaAfterCalendarChange_(); }
+      catch (teamAgendaError) {
+        try { audit_('AGENDA_EQUIPO_PENDIENTE', 'Contrato', contract.id, { message: teamAgendaError.message }); }
+        catch (ignored) {}
+      }
     }
     try { audit_('CANCELAR_CONTRATO', 'Contrato', contract.id, { reason, calendarPending }); }
     catch (ignored) {}

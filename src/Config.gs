@@ -95,12 +95,17 @@ function setupSystem_(ownerEmail, employeeEmail) {
       summary: 'Agenda oficial de contratos y eventos de Plaza Represo',
       timeZone: APP_CONFIG.TIME_ZONE
     });
+    const teamCalendar = CalendarApp.createCalendar(TEAM_AGENDA_TITLE_, {
+      description: 'Agenda de horarios reservados para el equipo. No contiene datos de clientes, contratos ni pagos.',
+      timeZone: APP_CONFIG.TIME_ZONE
+    });
 
     props.setProperties({
       SPREADSHEET_ID: spreadsheet.getId(),
       CONTRACTS_FOLDER_ID: contractsFolder.getId(),
       PRIVATE_INE_FOLDER_ID: privateIneFolder.getId(),
       CALENDAR_ID: calendar.getId(),
+      TEAM_CALENDAR_ID: teamCalendar.getId(),
       OWNER_EMAIL: owner,
       TIME_ZONE: APP_CONFIG.TIME_ZONE
     });
@@ -110,7 +115,11 @@ function setupSystem_(ownerEmail, employeeEmail) {
     if (employee) {
       appendObject_('Usuarios', { email: employee, role: APP_CONFIG.ROLE_VIEWER, active: false });
       try {
-        grantDataAccess_(employee);
+        // En una instalación nueva no se comparte la base ni Drive: el equipo
+        // recibe solamente el calendario sanitario de horarios.
+        setAgendaOnlyViewerEmails_([employee]);
+        props.setProperty(AGENDA_ONLY_ACCESS_ENABLED_PROPERTY_, 'true');
+        props.setProperty(AGENDA_ONLY_MIGRATION_PROPERTY_, 'true');
         updateObject_('Usuarios', 'email', employee, { active: true });
       } catch (error) {
         employeeAccessWarning = String(error.message || error);
@@ -141,7 +150,7 @@ function setupSystem_(ownerEmail, employeeEmail) {
 }
 
 function getSystemInfo() {
-  currentUser_();
+  requireOwner_();
   return getSystemInfo_();
 }
 
@@ -152,6 +161,9 @@ function getSystemInfo_() {
     spreadsheetUrl: props.SPREADSHEET_ID ? `https://docs.google.com/spreadsheets/d/${props.SPREADSHEET_ID}` : '',
     contractsFolderUrl: props.CONTRACTS_FOLDER_ID ? `https://drive.google.com/drive/folders/${props.CONTRACTS_FOLDER_ID}` : '',
     calendarId: props.CALENDAR_ID || '',
+    teamCalendarUrl: props.TEAM_CALENDAR_ID
+      ? `https://calendar.google.com/calendar/u/0/r?cid=${encodeURIComponent(props.TEAM_CALENDAR_ID)}`
+      : '',
     timeZone: props.TIME_ZONE || APP_CONFIG.TIME_ZONE
   };
 }

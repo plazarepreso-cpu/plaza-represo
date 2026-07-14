@@ -145,6 +145,10 @@
     .agenda-card .agenda-date { color: var(--orange-dark); font-weight: 850; }
     .agenda-card h4 { margin: 8px 0 5px; }
     .agenda-card p { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 4px 0; }
+    .agenda-only-card { max-width: 680px; padding: 31px; text-align: center; }
+    .agenda-only-icon { width: 58px; height: 58px; display: grid; place-items: center; margin: 0 auto 15px; color: #7c2d12; background: var(--soft); border: 1px solid #fed7aa; border-radius: 18px; font-size: 26px; }
+    .agenda-only-card h4 { margin: 0; font-size: 21px; }
+    .agenda-only-card p { max-width: 500px; margin: 10px auto 20px; color: var(--muted); line-height: 1.55; }
     .empty { text-align: center; color: var(--muted); padding: 34px 12px; }
     dialog { width: min(760px, calc(100% - 24px)); max-height: calc(100vh - 30px); border: 0; border-radius: 20px; padding: 0; box-shadow: 0 30px 80px rgba(0,0,0,.28); }
     dialog::backdrop { background: rgba(17,17,17,.62); backdrop-filter: blur(3px); }
@@ -212,16 +216,16 @@
     <aside class="sidebar">
       <div class="brand" id="brand"><img class="brand-logo" id="brandLogo" alt="Plaza Represo Eventos"><div class="brand-fallback"><div class="brand-mark">PR</div><div><h1>PLAZA REPRESO</h1><span>EVENTOS</span></div></div></div>
       <nav aria-label="Navegación principal">
-        <button class="nav-btn active" type="button" data-view="dashboard" aria-current="page"><span class="nav-icon">⌂</span><span class="nav-label">Inicio</span></button>
+        <button class="nav-btn active owner-only" type="button" data-view="dashboard" aria-current="page"><span class="nav-icon">⌂</span><span class="nav-label">Inicio</span></button>
         <button class="nav-btn owner-only" type="button" data-view="new-contract"><span class="nav-icon">＋</span><span class="nav-label">Nuevo contrato</span></button>
         <button class="nav-btn" type="button" data-view="agenda"><span class="nav-icon">▦</span><span class="nav-label">Agenda</span></button>
-        <button class="nav-btn" type="button" data-view="contracts"><span class="nav-icon">▤</span><span class="nav-label">Contratos</span></button>
-        <button class="nav-btn" type="button" data-view="payments"><span class="nav-icon">$</span><span class="nav-label">Pagos</span></button>
-        <button class="nav-btn" type="button" data-view="clients"><span class="nav-icon">●</span><span class="nav-label">Clientes</span></button>
+        <button class="nav-btn owner-only" type="button" data-view="contracts"><span class="nav-icon">▤</span><span class="nav-label">Contratos</span></button>
+        <button class="nav-btn owner-only" type="button" data-view="payments"><span class="nav-icon">$</span><span class="nav-label">Pagos</span></button>
+        <button class="nav-btn owner-only" type="button" data-view="clients"><span class="nav-icon">●</span><span class="nav-label">Clientes</span></button>
         <button class="nav-btn owner-only" type="button" data-view="access"><span class="nav-icon">◆</span><span class="nav-label">Accesos</span></button>
         <button class="nav-btn owner-only" type="button" data-view="automations"><span class="nav-icon">⚙</span><span class="nav-label">Automatizaciones</span></button>
       </nav>
-      <div class="side-note">La agenda, contratos y saldos se actualizan para todos. Las identificaciones permanecen privadas.</div>
+      <div class="side-note" id="sideNote">La agenda, contratos y saldos se actualizan para el propietario. Las identificaciones permanecen privadas.</div>
     </aside>
 
     <main>
@@ -236,7 +240,7 @@
       <div class="content">
         <div class="demo-banner" id="demoBanner"><div class="demo-banner-inner"><div><strong>Modo demostración.</strong> Usa solo datos e identificaciones ficticias. La imagen se simula durante el flujo y no se persiste.</div><button class="btn btn-ghost btn-small" type="button" id="resetDemoButton">Restablecer demo</button></div></div>
 
-        <section class="view active" id="view-dashboard">
+        <section class="view active owner-only" id="view-dashboard">
           <div class="page-head"><div><h3>Buenos días</h3><p>Este es el estado actual de Plaza Represo.</p></div><button class="btn btn-primary owner-only" type="button" data-go="new-contract">＋ Crear contrato</button></div>
           <div class="grid kpis">
             <div class="card kpi"><div class="kpi-label">Próximos eventos</div><div class="kpi-value" id="kpiEvents">0</div><div class="kpi-detail">Agenda confirmada</div></div>
@@ -250,7 +254,7 @@
           </div>
         </section>
 
-        <section class="view" id="view-new-contract">
+        <section class="view owner-only" id="view-new-contract">
           <div class="page-head"><div><h3>Nuevo contrato</h3><p>Sube la INE, confirma los datos y completa el evento.</p></div><div class="status CONFIRMADO" id="nextNumber">SIGUIENTE C.2626</div></div>
           <form class="card form-card" id="contractForm">
             <div class="form-section">
@@ -307,17 +311,25 @@
         </section>
 
         <section class="view" id="view-agenda">
-          <div class="page-head"><div><h3>Agenda compartida</h3><p>Primero se muestran los próximos eventos; los ya pasados permanecen separados en el histórico.</p></div><button class="btn btn-primary owner-only" type="button" id="syncAgendaButton">↻ Sincronizar Calendar</button></div>
-          <section class="agenda-section" aria-labelledby="upcomingAgendaTitle"><div class="agenda-section-head"><div><h4 id="upcomingAgendaTitle">Próximos eventos</h4><p>El primero se marca como el siguiente compromiso.</p></div><span class="status CONFIRMADO" id="agendaUpcomingCount">0 próximos</span></div><div class="grid agenda-grid" id="agendaUpcomingGrid"></div></section>
-          <section class="agenda-section" aria-labelledby="historyAgendaTitle"><div class="agenda-section-head"><div><h4 id="historyAgendaTitle">Histórico</h4><p>Eventos ya realizados o cancelados.</p></div><span class="status ANTERIOR" id="agendaHistoryCount">0 en histórico</span></div><div class="grid agenda-grid" id="agendaHistoryGrid"></div></section>
+          <div class="page-head owner-only"><div><h3>Agenda compartida</h3><p>Primero se muestran los próximos eventos; los ya pasados permanecen separados en el histórico.</p></div><button class="btn btn-primary" type="button" id="syncAgendaButton">↻ Sincronizar Calendar</button></div>
+          <section class="card agenda-only-card" id="agendaOnlyPanel" hidden aria-live="polite">
+            <div class="agenda-only-icon" aria-hidden="true">▦</div>
+            <h4>Agenda de equipo</h4>
+            <p id="agendaOnlyMessage">Solo muestra horarios reservados. Los datos de clientes, contratos, pagos, documentos e identificaciones se mantienen privados.</p>
+            <a class="btn btn-primary" id="agendaOnlyLink" target="_blank" rel="noopener noreferrer" hidden>Abrir Google Calendar</a>
+          </section>
+          <div class="owner-only" id="agendaOwnerContent">
+            <section class="agenda-section" aria-labelledby="upcomingAgendaTitle"><div class="agenda-section-head"><div><h4 id="upcomingAgendaTitle">Próximos eventos</h4><p>El primero se marca como el siguiente compromiso.</p></div><span class="status CONFIRMADO" id="agendaUpcomingCount">0 próximos</span></div><div class="grid agenda-grid" id="agendaUpcomingGrid"></div></section>
+            <section class="agenda-section" aria-labelledby="historyAgendaTitle"><div class="agenda-section-head"><div><h4 id="historyAgendaTitle">Histórico</h4><p>Eventos ya realizados o cancelados.</p></div><span class="status ANTERIOR" id="agendaHistoryCount">0 en histórico</span></div><div class="grid agenda-grid" id="agendaHistoryGrid"></div></section>
+          </div>
         </section>
 
-        <section class="view" id="view-contracts">
+        <section class="view owner-only" id="view-contracts">
           <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios.</p></div><div class="filters"><button class="btn btn-ghost owner-only" type="button" id="syncFilesButton">Vincular archivos de Drive</button><div><label class="sr-only" for="contractSearch">Buscar contrato</label><input id="contractSearch" placeholder="Buscar número o cliente"></div><div><label class="sr-only" for="contractStatus">Filtrar por estado</label><select id="contractStatus"><option value="">Todos</option><option>CONFIRMADO</option><option>PAGADO</option><option>CANCELADO</option><option>CALENDARIO</option><option>ERROR</option></select></div></div></div>
           <div class="card table-wrap"><table class="data"><thead><tr><th>Contrato</th><th>Evento</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th></th></tr></thead><tbody id="contractsBody"></tbody></table></div>
         </section>
 
-        <section class="view" id="view-payments">
+        <section class="view owner-only" id="view-payments">
           <div class="page-head"><div><h3>Pagos y recibos</h3><p>El contrato original se conserva; cada abono genera historial. También puedes cobrar contratos anteriores ya indexados.</p></div></div>
           <div class="grid dashboard-grid">
             <form class="card form-card owner-only" id="paymentForm">
@@ -335,13 +347,14 @@
           </div>
         </section>
 
-        <section class="view" id="view-clients">
+        <section class="view owner-only" id="view-clients">
           <div class="page-head"><div><h3>Clientes</h3><p>Información contractual sin exponer la fotografía de la INE.</p></div><div><label class="sr-only" for="clientSearch">Buscar cliente</label><input id="clientSearch" style="max-width:300px" placeholder="Buscar cliente"></div></div>
           <div class="card table-wrap"><table class="data"><thead><tr><th>Nombre</th><th>Domicilio</th><th>Teléfono</th><th>INE privada</th><th>Última actualización</th></tr></thead><tbody id="clientsBody"></tbody></table></div>
         </section>
 
         <section class="view owner-only" id="view-access">
-          <div class="page-head"><div><h3>Accesos del equipo</h3><p>El propietario decide qué correos pueden consultar el panel y los contratos.</p></div></div>
+          <div class="page-head"><div><h3>Accesos del equipo</h3><p>El propietario decide qué correos reciben los horarios reservados.</p></div></div>
+          <div class="warning" id="accessMigrationWarning" hidden></div>
           <div class="grid dashboard-grid">
             <form class="card form-card" id="accessForm">
               <div class="card-head"><h4>Agregar o restaurar acceso</h4></div>
@@ -350,7 +363,7 @@
                 <div class="field full"><button class="btn btn-primary" type="submit" style="width:100%">Dar acceso de consulta</button></div>
               </div>
             </form>
-            <div class="card"><div class="card-head"><h4>Cuentas autorizadas</h4></div><div class="card-body"><p style="color:var(--muted);margin-top:0">Los empleados ven agenda, contratos, pagos y clientes, pero nunca la fotografía de la INE.</p></div></div>
+            <div class="card"><div class="card-head"><h4>Cuentas autorizadas</h4></div><div class="card-body"><p style="color:var(--muted);margin-top:0">Los empleados reciben horarios reservados como invitaciones en Google Calendar, sin clientes, contratos, pagos, documentos ni identificaciones.</p></div></div>
           </div>
           <div class="card table-wrap" style="margin-top:18px"><table class="data"><thead><tr><th>Correo</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody id="accessBody"></tbody></table></div>
         </section>
@@ -822,6 +835,7 @@
     function normalizeBootstrap(data) {
       const normalized = data && typeof data === 'object' ? data : {};
       normalized.user = normalized.user || { email:'—', role:'CONSULTA' };
+      const isOwner = normalized.user.role === 'PROPIETARIO';
       normalized.config = normalized.config || { weekdayRate:0, weekendRate:0, eventHours:5, nextContractNumber:'—' };
       normalized.contracts = (Array.isArray(normalized.contracts) ? normalized.contracts : []).map(normalizeEventRecord);
       normalized.agenda = (Array.isArray(normalized.agenda) ? normalized.agenda : []).map(normalizeEventRecord);
@@ -832,6 +846,19 @@
       normalized.users = Array.isArray(normalized.users) ? normalized.users : [];
       normalized.branding = normalized.branding && typeof normalized.branding === 'object' ? normalized.branding : { logoDataUrl:'' };
       normalized.automation = normalized.automation || { installed:false, status:'PENDIENTE', triggerCount:0, lastRunAt:'', lastSummary:'Sin información disponible.' };
+      normalized.agendaOnly = normalized.agendaOnly === true || !isOwner;
+      normalized.agendaUrl = typeof normalized.agendaUrl === 'string' ? normalized.agendaUrl : '';
+      // Defensa de interfaz: una cuenta de consulta nunca conserva datos privados
+      // en el estado del navegador, aunque un servicio antiguo los regresara.
+      if (!isOwner) {
+        normalized.contracts = [];
+        normalized.agenda = [];
+        normalized.history = [];
+        normalized.files = [];
+        normalized.clients = [];
+        normalized.payments = [];
+        normalized.users = [];
+      }
       return normalized;
     }
 
@@ -994,7 +1021,7 @@
       showLoading('Preparando el panel…');
       try {
         await loadLatest();
-        switchView('dashboard', false);
+        switchView(state.data?.user?.role === 'PROPIETARIO' ? 'dashboard' : 'agenda', false);
       } finally {
         hideLoading();
       }
@@ -1008,12 +1035,15 @@
       document.getElementById('avatar').textContent = isOwner ? 'P' : 'C';
       document.getElementById('demoBanner').classList.toggle('show', state.isDemo);
       document.querySelectorAll('.owner-only').forEach(element => element.classList.toggle('owner-visible', isOwner));
+      document.getElementById('sideNote').textContent = isOwner
+        ? 'La agenda, contratos y saldos se actualizan para el propietario. Las identificaciones permanecen privadas.'
+        : 'Solo puedes consultar la agenda de equipo. Los datos de clientes, contratos y pagos son privados.';
       renderBrand();
-      document.getElementById('nextNumber').textContent = `SIGUIENTE ${state.data.config.nextContractNumber || '—'}`;
-      const activeOwnerView = document.querySelector('.view.active.owner-only');
-      if (!isOwner && activeOwnerView) switchView('dashboard', false);
-      renderDashboard();
+      if (isOwner) document.getElementById('nextNumber').textContent = `SIGUIENTE ${state.data.config.nextContractNumber || '—'}`;
+      if (!isOwner) switchView('agenda', false);
       renderAgenda();
+      if (!isOwner) return;
+      renderDashboard();
       renderContracts();
       renderPayments();
       renderClients();
@@ -1061,6 +1091,26 @@
     }
 
     function renderAgenda() {
+      const isOwner = state.data?.user?.role === 'PROPIETARIO';
+      const agendaOnlyPanel = document.getElementById('agendaOnlyPanel');
+      const agendaOnlyLink = document.getElementById('agendaOnlyLink');
+      const agendaOnlyMessage = document.getElementById('agendaOnlyMessage');
+      if (!isOwner) {
+        const agendaUrl = teamAgendaUrl(state.data?.agendaUrl);
+        agendaOnlyPanel.hidden = false;
+        agendaOnlyLink.hidden = !agendaUrl;
+        if (agendaUrl) {
+          agendaOnlyLink.href = agendaUrl;
+          agendaOnlyMessage.textContent = 'Solo muestra horarios reservados. Los datos de clientes, contratos, pagos, documentos e identificaciones se mantienen privados.';
+        } else {
+          agendaOnlyLink.removeAttribute('href');
+          agendaOnlyMessage.textContent = 'Tu agenda de equipo se está preparando. Pide al propietario que actualice tu acceso si el botón no aparece.';
+        }
+        return;
+      }
+      agendaOnlyPanel.hidden = true;
+      agendaOnlyLink.hidden = true;
+      agendaOnlyLink.removeAttribute('href');
       const currentDay = today();
       const events = agendaItems();
       const upcoming = events
@@ -1073,6 +1123,15 @@
       document.getElementById('agendaHistoryCount').textContent = `${historical.length} en histórico`;
       document.getElementById('agendaUpcomingGrid').innerHTML = upcoming.map((event, index) => renderAgendaCard(event, index === 0)).join('') || '<div class="empty">No hay eventos próximos.</div>';
       document.getElementById('agendaHistoryGrid').innerHTML = historical.map(event => renderAgendaCard(event)).join('') || '<div class="empty">Aún no hay eventos en el histórico.</div>';
+    }
+
+    function teamAgendaUrl(value) {
+      try {
+        const url = new URL(String(value || '').trim());
+        return url.protocol === 'https:' && url.hostname === 'calendar.google.com' ? url.href : '';
+      } catch (ignored) {
+        return '';
+      }
     }
 
     function renderContracts() {
@@ -1134,6 +1193,12 @@
     }
 
     function renderAccess() {
+      const migrationWarning = document.getElementById('accessMigrationWarning');
+      const migrationMessage = String(state.data?.accessMigrationWarning || '').trim();
+      migrationWarning.hidden = !migrationMessage;
+      migrationWarning.textContent = migrationMessage
+        ? `No se terminó de proteger el acceso anterior: ${migrationMessage}`
+        : '';
       const users = [...(state.data.users || [])].sort((a, b) => {
         if (a.role === 'PROPIETARIO' && b.role !== 'PROPIETARIO') return -1;
         if (b.role === 'PROPIETARIO' && a.role !== 'PROPIETARIO') return 1;
@@ -1186,7 +1251,8 @@
         if (active) button.setAttribute('aria-current', 'page');
         else button.removeAttribute('aria-current');
       });
-      document.getElementById('viewTitle').textContent = viewTitles[name] || 'Plaza Represo';
+      const isViewerAgenda = name === 'agenda' && state.data?.user?.role !== 'PROPIETARIO';
+      document.getElementById('viewTitle').textContent = isViewerAgenda ? 'Agenda de equipo' : (viewTitles[name] || 'Plaza Represo');
       window.scrollTo({ top:0, behavior:smooth ? 'smooth' : 'auto' });
     }
 

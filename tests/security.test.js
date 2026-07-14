@@ -4,6 +4,8 @@ const assert = require('assert');
 
 let activeEmail = 'propietaria.ficticia@example.com';
 let users = [];
+let scriptProperties = {};
+let privateUserReads = 0;
 
 const context = vm.createContext({
   APP_CONFIG: {
@@ -13,7 +15,14 @@ const context = vm.createContext({
   Session: {
     getActiveUser: () => ({ getEmail: () => activeEmail })
   },
+  PropertiesService: {
+    getScriptProperties: () => ({
+      getProperty: key => scriptProperties[key] || '',
+      setProperty: (key, value) => { scriptProperties[key] = String(value); }
+    })
+  },
   listObjects_: sheetName => {
+    privateUserReads += 1;
     assert.strictEqual(sheetName, 'Usuarios');
     return users;
   }
@@ -42,6 +51,8 @@ test('solo el booleano true y el texto true representan una cuenta activa', () =
 
 test('currentUser autoriza una cuenta ficticia activa y normaliza su correo', () => {
   activeEmail = '  PROPIETARIA.FICTICIA@EXAMPLE.COM ';
+  scriptProperties = {};
+  privateUserReads = 0;
   users = [{
     email: 'propietaria.ficticia@example.com',
     role: 'PROPIETARIO',
@@ -56,6 +67,8 @@ test('currentUser autoriza una cuenta ficticia activa y normaliza su correo', ()
 
 test('currentUser rechaza valores activos ambiguos aunque el correo coincida', () => {
   activeEmail = 'consulta.ficticia@example.com';
+  scriptProperties = {};
+  privateUserReads = 0;
   users = [{
     email: 'consulta.ficticia@example.com',
     role: 'CONSULTA',
@@ -63,6 +76,45 @@ test('currentUser rechaza valores activos ambiguos aunque el correo coincida', (
   }];
 
   assert.throws(() => context.currentUser_(), /no está autorizada/);
+});
+
+test('currentUser reconoce al empleado de agenda desde propiedades sin leer la hoja privada', () => {
+  activeEmail = '  EMPLEADA.FICTICIA@EXAMPLE.COM ';
+  scriptProperties = {
+    OWNER_EMAIL: 'propietaria.ficticia@example.com',
+    TEAM_VIEWER_EMAILS: JSON.stringify(['empleada.ficticia@example.com']),
+    AGENDA_ONLY_ACCESS_ENABLED: 'true'
+  };
+  users = [{
+    email: 'empleada.ficticia@example.com',
+    role: 'CONSULTA',
+    active: true
+  }];
+  privateUserReads = 0;
+
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(context.currentUser_())), {
+    email: 'empleada.ficticia@example.com',
+    role: 'CONSULTA'
+  });
+  assert.strictEqual(privateUserReads, 0, 'la cuenta de agenda no debe abrir Usuarios ni la hoja privada');
+});
+
+test('cuando la agenda exclusiva está activa, una cuenta ajena no cae a la hoja privada', () => {
+  activeEmail = 'ajena.ficticia@example.com';
+  scriptProperties = {
+    OWNER_EMAIL: 'propietaria.ficticia@example.com',
+    TEAM_VIEWER_EMAILS: JSON.stringify(['empleada.ficticia@example.com']),
+    AGENDA_ONLY_ACCESS_ENABLED: 'true'
+  };
+  users = [{
+    email: 'ajena.ficticia@example.com',
+    role: 'PROPIETARIO',
+    active: true
+  }];
+  privateUserReads = 0;
+
+  assert.throws(() => context.currentUser_(), /no está autorizada/);
+  assert.strictEqual(privateUserReads, 0, 'no debe intentar leer Usuarios para una cuenta no incluida');
 });
 
 test('la vista pública del cliente no filtra el identificador privado', () => {
@@ -101,7 +153,7 @@ test('la instalación queda privada para google.script.run', () => {
 test('el panel no permite embeber acciones desde otros sitios', () => {
   const configSource = fs.readFileSync('src/Config.gs', 'utf8');
   assert.doesNotMatch(configSource, /XFrameOptionsMode\.ALLOWALL/);
-  assert.match(configSource, /function getSystemInfo\(\)\s*{\s*currentUser_\(\)/);
+  assert.match(configSource, /function getSystemInfo\(\)\s*{\s*requireOwner_\(\)/);
 });
 
 console.log(`${passed} casos de seguridad verificados correctamente.`);
