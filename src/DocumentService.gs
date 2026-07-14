@@ -82,6 +82,54 @@ function printableTime_(value) {
   return `${twelveHour}:${match[2]} ${suffix}`;
 }
 
+function appendOriginalBrandLogo_(brandCell) {
+  const originalLogo = getPlazaRepresoBrandBlob_();
+  if (!originalLogo) return false;
+
+  try {
+    brandCell.clear();
+    const logoParagraph = brandCell.appendParagraph('');
+    logoParagraph.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    logoParagraph.setSpacingBefore(0).setSpacingAfter(0);
+    const logo = logoParagraph.appendInlineImage(originalLogo);
+
+    // Conserva las proporciones del logotipo original aun si se sustituye el
+    // archivo maestro por una versión con dimensiones distintas.
+    const maxWidth = 352;
+    const maxHeight = 65;
+    const sourceWidth = typeof logo.getWidth === 'function' ? Number(logo.getWidth()) : 0;
+    const sourceHeight = typeof logo.getHeight === 'function' ? Number(logo.getHeight()) : 0;
+    if (sourceWidth > 0 && sourceHeight > 0) {
+      const scale = Math.min(maxWidth / sourceWidth, maxHeight / sourceHeight);
+      logo.setWidth(Math.max(1, Math.round(sourceWidth * scale)));
+      logo.setHeight(Math.max(1, Math.round(sourceHeight * scale)));
+    } else {
+      logo.setWidth(maxWidth);
+      logo.setHeight(maxHeight);
+    }
+    return true;
+  } catch (error) {
+    // Un archivo incompatible nunca debe impedir generar un contrato o recibo.
+    return false;
+  }
+}
+
+function appendBrandFallback_(brandCell) {
+  // Mantiene el documento imprimible si un día se mueve o se daña el archivo de marca.
+  brandCell.clear();
+  const plaza = brandCell.appendParagraph('PLAZA');
+  styleText_(plaza, {
+    fontFamily: 'Arial', fontSize: 8, bold: true, color: DOCUMENT_THEME.white,
+    spacingBefore: 0, spacingAfter: 0
+  });
+  const brand = brandCell.appendParagraph('REPRESO  EVENTOS');
+  styleText_(brand, {
+    fontFamily: 'Arial', fontSize: 21, bold: true, color: DOCUMENT_THEME.gold,
+    spacingBefore: 0, spacingAfter: 0
+  });
+  styleFragments_(brand, [{ text: 'EVENTOS', fontSize: 8, color: DOCUMENT_THEME.white }]);
+}
+
 function appendBrandHeader_(body, rightLabel, rightValue) {
   const table = body.appendTable([['', '']]);
   table.setBorderColor(DOCUMENT_THEME.gold).setBorderWidth(1.4);
@@ -91,29 +139,7 @@ function appendBrandHeader_(body, rightLabel, rightValue) {
   brandCell.setBackgroundColor('#000000')
     .setPaddingTop(3).setPaddingBottom(3).setPaddingLeft(5).setPaddingRight(5)
     .setVerticalAlignment(DocumentApp.VerticalAlignment.CENTER);
-  const originalLogo = getPlazaRepresoBrandBlob_();
-  if (originalLogo) {
-    brandCell.clear();
-    const logoParagraph = brandCell.appendParagraph('');
-    logoParagraph.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-    logoParagraph.setSpacingBefore(0).setSpacingAfter(0);
-    const logo = logoParagraph.appendInlineImage(originalLogo);
-    logo.setWidth(352).setHeight(65);
-  } else {
-    // Mantiene el documento imprimible si un día se mueve el archivo de marca.
-    const plaza = brandCell.getChild(0).asParagraph();
-    plaza.setText('PLAZA');
-    styleText_(plaza, {
-      fontFamily: 'Arial', fontSize: 8, bold: true, color: DOCUMENT_THEME.white,
-      spacingBefore: 0, spacingAfter: 0
-    });
-    const brand = brandCell.appendParagraph('REPRESO  EVENTOS');
-    styleText_(brand, {
-      fontFamily: 'Arial', fontSize: 21, bold: true, color: DOCUMENT_THEME.gold,
-      spacingBefore: 0, spacingAfter: 0
-    });
-    styleFragments_(brand, [{ text: 'EVENTOS', fontSize: 8, color: DOCUMENT_THEME.white }]);
-  }
+  if (!appendOriginalBrandLogo_(brandCell)) appendBrandFallback_(brandCell);
 
   const badgeCell = table.getCell(0, 1);
   badgeCell.setBackgroundColor(DOCUMENT_THEME.inkSoft)
