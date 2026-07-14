@@ -14,6 +14,8 @@ new vm.Script(inlineScripts[0], { filename: 'src/index.html:inline' });
 assert.match(html, /tesseract\.js@5\.1\.1\//, 'Tesseract usa una versión exacta');
 assert.doesNotMatch(html, /tesseract\.js@5\//, 'Tesseract no usa una versión flotante');
 assert.match(html, /id="reviewConfirmed"[^>]*required/, 'la revisión humana es obligatoria');
+assert.match(html, /cliente autorizó el resguardo privado/, 'la producción exige autorización para resguardar la INE');
+assert.match(html, /nunca se muestra al empleado/, 'el panel explica la separación de la INE privada');
 assert.match(html, /id="cancelReason"/, 'la cancelación solicita un motivo dentro del panel');
 assert.doesNotMatch(html, /window\.prompt\(/, 'el panel no depende de diálogos nativos para cancelar');
 assert.match(html, /SIMULADA · NO PERSISTIDA/, 'el demo no afirma que resguarda la imagen');
@@ -23,6 +25,7 @@ assert.match(html, /id="accessEmail"[^>]*type="email"[^>]*required/, 'el propiet
 assert.match(html, /data-access-action/, 'el propietario puede retirar o restaurar accesos');
 assert.match(html, /id="historicalImportFile"[^>]*accept="application\/json,.json"/, 'el propietario puede seleccionar el historial privado');
 assert.match(html, /callServer\('importHistoricalContracts'/, 'el panel envía únicamente contratos aprobados al importador');
+assert.match(html, /no importes contratos que ya estén en Drive o Calendar/, 'el panel advierte contra duplicar el historial existente');
 
 function extractFunction(source, name) {
   const start = source.indexOf(`function ${name}(`);

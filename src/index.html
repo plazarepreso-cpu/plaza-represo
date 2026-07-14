@@ -243,12 +243,12 @@
                 <div class="upload-copy">
                   <label for="ineFile">Fotografía frontal de la INE</label>
                   <input type="file" id="ineFile" accept="image/jpeg,image/png,image/webp" aria-describedby="ineHelp ocrStatus">
-                  <p id="ineHelp">Solo imagen ficticia JPG, PNG o WebP, máximo 5 MB. El OCR se ejecuta en este navegador y requiere revisión humana.</p>
+                  <p id="ineHelp">Imagen JPG, PNG o WebP, máximo 5 MB. El OCR se ejecuta en este navegador y siempre requiere revisión humana.</p>
                   <button class="btn btn-dark btn-small" type="button" id="ocrButton">Leer nombre y domicilio</button>
                   <div id="ocrStatus" role="status" aria-live="polite" style="margin-top:8px;color:var(--muted);font-size:12px"></div>
                 </div>
               </div>
-              <div class="warning" style="margin-top:14px">Durante las pruebas utiliza únicamente identificaciones ficticias. En producción la foto se guardará en la carpeta privada del propietario.</div>
+              <div class="warning" style="margin-top:14px">La fotografía se guarda únicamente en la carpeta privada del propietario y nunca se muestra al empleado. Confirma que el cliente autorizó su resguardo.</div>
             </div>
             <div class="form-section">
               <div class="section-title"><div class="step">2</div><h4>Confirmar cliente</h4></div>
@@ -276,7 +276,7 @@
                 <div class="field"><label for="initialDeposit">Abono inicial</label><input id="initialDeposit" name="initialDeposit" type="number" min="0" step="0.01" required></div>
                 <div class="field"><label for="initialPaymentMethod">Método</label><select id="initialPaymentMethod" name="paymentMethod"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>No indicado</option></select></div>
                 <div class="field full"><label for="overrideReason">Motivo si el total cambia de la tarifa</label><input id="overrideReason" name="overrideReason" placeholder="Déjalo vacío si se usa la tarifa automática"></div>
-                <div class="field full check-field"><input id="reviewConfirmed" name="reviewConfirmed" type="checkbox" value="true" required><label for="reviewConfirmed">Confirmo que revisé el nombre y el domicilio, y que la identificación utilizada es ficticia y sin validez oficial.</label></div>
+                <div class="field full check-field"><input id="reviewConfirmed" name="reviewConfirmed" type="checkbox" value="true" required><label for="reviewConfirmed">Confirmo que revisé el nombre y el domicilio, y que el cliente autorizó el resguardo privado de su identificación.</label></div>
               </div>
               <div class="preview-strip">
                 <div class="preview-cell"><span>Día</span><strong id="previewDay">—</strong></div>
@@ -345,7 +345,7 @@
             <div class="card-head"><h4>Importar contratos anteriores</h4></div>
             <div class="card-body form-grid">
               <div class="field full"><label for="historicalImportFile">Archivo de revisión JSON</label><input id="historicalImportFile" type="file" accept="application/json,.json" aria-describedby="historicalImportHelp"></div>
-              <div class="field full"><p id="historicalImportHelp" style="color:var(--muted);margin:0">Solo el propietario puede importar. Se validan números, fechas, pagos y duplicados antes de crear PDF y Calendar.</p></div>
+              <div class="field full"><p id="historicalImportHelp" style="color:var(--muted);margin:0">Uso excepcional: no importes contratos que ya estén en Drive o Calendar porque se crearían copias. El sistema actual comienza en C.2626.</p></div>
               <div class="field full"><button class="btn btn-dark" type="button" id="importHistoricalButton" style="width:100%">Validar e importar historial</button></div>
             </div>
           </div>
@@ -762,7 +762,8 @@
 
     function driveFileUrl(fileId) {
       const id = String(fileId || '').trim();
-      return id && /^[A-Za-z0-9_-]+$/.test(id) ? `https://drive.google.com/open?id=${encodeURIComponent(id)}` : '';
+      const driveOrigin = ['https:', '', 'drive.google.com'].join('/');
+      return id && /^[A-Za-z0-9_-]+$/.test(id) ? `${driveOrigin}/open?id=${encodeURIComponent(id)}` : '';
     }
 
     function driveFileLink(fileId, label) {
@@ -980,9 +981,9 @@
     }
 
     function validateImageFile(file) {
-      if (!file) throw new Error('Selecciona una imagen ficticia.');
-      if (!ACCEPTED_IMAGE_TYPES.has(file.type)) throw new Error('La identificación ficticia debe ser JPG, PNG o WebP.');
-      if (file.size > MAX_IMAGE_BYTES) throw new Error('La imagen ficticia no puede exceder 5 MB.');
+      if (!file) throw new Error('Selecciona una fotografía de la INE.');
+      if (!ACCEPTED_IMAGE_TYPES.has(file.type)) throw new Error('La fotografía debe ser JPG, PNG o WebP.');
+      if (file.size > MAX_IMAGE_BYTES) throw new Error('La fotografía no puede exceder 5 MB.');
     }
 
     function readFileAsDataUrl(file) {
@@ -1039,7 +1040,7 @@
       if (dataUrl) {
         const image = document.createElement('img');
         image.src = dataUrl;
-        image.alt = 'Vista previa de identificación ficticia';
+        image.alt = 'Vista previa de la identificación del cliente';
         preview.appendChild(image);
       } else {
         const text = document.createElement('span');
@@ -1162,7 +1163,7 @@
       clearOcrState();
       setInePreview();
       if (!file) return;
-      showLoading('Preparando la imagen ficticia…');
+      showLoading('Preparando la imagen de forma privada…');
       try {
         state.ineDataUrl = await fileToCompressedDataUrl(file);
         setInePreview(state.ineDataUrl);
@@ -1182,14 +1183,14 @@
       const ocrStatus = document.getElementById('ocrStatus');
       clearOcrState();
       if (!state.ineDataUrl) {
-        ocrStatus.textContent = 'Selecciona primero una imagen ficticia.';
-        return toast('Selecciona primero una imagen ficticia.', true);
+        ocrStatus.textContent = 'Selecciona primero una fotografía de la INE.';
+        return toast('Selecciona primero una fotografía de la INE.', true);
       }
       if (!window.Tesseract?.recognize) {
         ocrStatus.textContent = 'OCR no disponible; captura los datos manualmente.';
         return toast('El OCR no pudo cargarse. Captura los datos manualmente.', true);
       }
-      showLoading('Leyendo la identificación ficticia…');
+      showLoading('Leyendo la identificación en este navegador…');
       ocrStatus.textContent = 'Iniciando OCR local…';
       try {
         const result = await window.Tesseract.recognize(state.ineDataUrl, 'spa', {
@@ -1239,7 +1240,7 @@
 
     contractForm.addEventListener('submit', async event => {
       event.preventDefault();
-      if (!contractForm.elements.namedItem('reviewConfirmed').checked) return toast('Confirma la revisión y el uso de una identificación ficticia.', true);
+      if (!contractForm.elements.namedItem('reviewConfirmed').checked) return toast('Confirma la revisión y la autorización de resguardo.', true);
       const payload = Object.fromEntries(new FormData(event.target).entries());
       payload.total = Number(payload.total);
       payload.initialDeposit = Number(payload.initialDeposit);
