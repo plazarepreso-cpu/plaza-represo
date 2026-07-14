@@ -30,5 +30,21 @@
     "initialDeposit": 1750,
     "paid": 3500,
     "balance": 0
+  },
+  {
+    "contractNumber": "C.2627",
+    "status": "CONFIRMADO",
+    "elaborationDate": "2026-07-14",
+    "eventDate": "2026-08-09",
+    "startTime": "17:30",
+    "endTime": "22:30",
+    "eventType": "Celebración de aniversario familiar con decoración temática ficticia",
+    "clientName": "María Fernanda de los Ángeles Contreras Villaseñor",
+    "address": "Boulevard de la Demostración número 1875 interior 4, Col. Jardines del Ensayo, Nogales, Sonora",
+    "phone": "000 000 0002",
+    "total": 4500,
+    "initialDeposit": 2250,
+    "paid": 2250,
+    "balance": 2250
   }
 ]

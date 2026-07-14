@@ -25,3 +25,19 @@
 - Incluye contrato, cliente, fecha, método, concepto, total pagado y saldo restante.
 - Muestra claramente si el pago liquidó el contrato o dejó saldo pendiente.
 - Cada recibo conserva un folio visible y forma parte del historial del contrato.
+
+## Matriz de pruebas ficticias
+
+- `C.2625`: tarifa de fin de semana y saldo pendiente.
+- `C.2626`: tarifa entre semana y contrato pagado.
+- `C.2627`: nombre, domicilio y tipo de evento largos para verificar saltos de línea.
+- Recibo de liquidación con saldo en cero.
+- Recibo de abono posterior con saldo pendiente.
+
+La comprobación automatizada se ejecuta con:
+
+```bash
+python3 tests/document_design_test.py
+```
+
+La prueba exige una sola página tamaño carta, las nueve cláusulas completas y todos los datos y montos ficticios visibles.

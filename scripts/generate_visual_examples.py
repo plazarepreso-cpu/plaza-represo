@@ -263,9 +263,9 @@ def draw_contract(pdf, contract: dict, clauses: list[str]) -> None:
     pdf.showPage()
 
 
-def draw_receipt(pdf, contract: dict) -> None:
+def draw_receipt(pdf, contract: dict, payment: dict | None = None) -> None:
     width, height = letter
-    payment = {
+    payment = payment or {
         "id": "PAGO-DEMO-0001",
         "date": contract["eventDate"],
         "amount": contract["balance"],
@@ -322,12 +322,14 @@ def draw_receipt(pdf, contract: dict) -> None:
         pdf.setFont("Helvetica-Bold" if index >= 5 else "Helvetica", 9)
         pdf.drawString(x + label_width + 12, row_y + 10, str(value))
 
-    pdf.setFillColor(HexColor("#ECFDF3"))
-    pdf.setStrokeColor(GREEN)
+    is_paid = float(payment["newBalance"]) == 0
+    pdf.setFillColor(HexColor("#ECFDF3") if is_paid else GOLD_SOFT)
+    pdf.setStrokeColor(GREEN if is_paid else GOLD)
     pdf.roundRect(144, 294, 324, 34, 6, stroke=1, fill=1)
-    pdf.setFillColor(GREEN)
+    pdf.setFillColor(GREEN if is_paid else INK)
     pdf.setFont("Helvetica-Bold", 12)
-    pdf.drawCentredString(width / 2, 305, "PAGO LIQUIDADO")
+    status_text = "PAGO LIQUIDADO" if is_paid else f"SALDO PENDIENTE  {money(payment['newBalance'])}"
+    pdf.drawCentredString(width / 2, 305, status_text)
 
     pdf.setFillColor(INK)
     pdf.setFont("Helvetica-Bold", 10)
@@ -363,12 +365,12 @@ def main() -> None:
     contract = contracts[0]
 
     contract_path = OUTPUTS / "contrato_ejemplo_C2625.pdf"
-    contract_pdf = canvas.Canvas(str(contract_path), pagesize=letter, pageCompression=1)
+    contract_pdf = canvas.Canvas(str(contract_path), pagesize=letter, pageCompression=1, invariant=1)
     draw_contract(contract_pdf, contract, clauses)
     contract_pdf.save()
 
     receipt_path = OUTPUTS / "recibo_ejemplo_C2625.pdf"
-    receipt_pdf = canvas.Canvas(str(receipt_path), pagesize=letter, pageCompression=1)
+    receipt_pdf = canvas.Canvas(str(receipt_path), pagesize=letter, pageCompression=1, invariant=1)
     draw_receipt(receipt_pdf, contract)
     receipt_pdf.save()
 
