@@ -2,6 +2,7 @@ function getBootstrapData() {
   const user = currentUser_();
   const contracts = listObjects_('Contratos')
     .filter(item => item.status !== 'GENERANDO')
+    .map(stripPrivateContractFields_)
     .sort((a, b) => String(a.eventDate).localeCompare(String(b.eventDate)));
   const clients = listObjects_('Clientes').map(stripPrivateClientFields_);
   const payments = listObjects_('Pagos').sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
@@ -33,6 +34,7 @@ function createContract(payload) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   let contractId = '';
+  let initialPayment = null;
   try {
     ensureSchema_();
     const requestId = String(data.requestId || Utilities.getUuid()).trim();
@@ -65,6 +67,7 @@ function createContract(payload) {
       endTime: data.endTime,
       eventType: String(data.eventType).trim(),
       clientId: client.id,
+      ineFileId: client.contractIneFileId || client.ineFileId || '',
       clientName: String(data.clientName).trim(),
       address: String(data.address).trim(),
       phone: String(data.phone).trim(),
@@ -82,7 +85,6 @@ function createContract(payload) {
     };
     appendObject_('Contratos', contract);
 
-    let initialPayment = null;
     if (validation.initialDeposit > 0) {
       initialPayment = {
         id: Utilities.getUuid(),
@@ -120,7 +122,7 @@ function createContract(payload) {
           status: 'ERROR',
           errorMessage: String(receiptError.message || receiptError).slice(0, 500)
         });
-        audit_('ERROR_RECIBO_INICIAL', 'Pago', initialPayment.id, { message: receiptError.message });
+        try { audit_('ERROR_RECIBO_INICIAL', 'Pago', initialPayment.id, { message: receiptError.message }); } catch (ignored) {}
       }
     }
     let calendarPending = false;
@@ -128,13 +130,22 @@ function createContract(payload) {
       contract.calendarEventId = createCalendarEvent_(contract);
     } catch (calendarError) {
       calendarPending = true;
-      audit_('CALENDARIO_PENDIENTE', 'Contrato', contractId, { message: calendarError.message });
+      try { audit_('CALENDARIO_PENDIENTE', 'Contrato', contractId, { message: calendarError.message }); } catch (ignored) {}
     }
     contract.updatedAt = nowIso_();
     contract = updateObject_('Contratos', 'id', contractId, contract);
-    audit_('CREAR_CONTRATO', 'Contrato', contractId, { contractNumber, version: 1, calendarPending });
+    try { audit_('CREAR_CONTRATO', 'Contrato', contractId, { contractNumber, version: 1, calendarPending }); }
+    catch (ignored) {}
     return contract;
   } catch (error) {
+    if (initialPayment && String(initialPayment.status) !== 'COMPLETADO') {
+      try {
+        initialPayment = updateObject_('Pagos', 'id', initialPayment.id, {
+          status: 'ERROR',
+          errorMessage: String(error.message || error).slice(0, 500)
+        });
+      } catch (ignored) {}
+    }
     if (contractId) {
       try { updateObject_('Contratos', 'id', contractId, { status: 'ERROR', updatedAt: nowIso_() }); } catch (ignored) {}
       try { audit_('ERROR_CREAR_CONTRATO', 'Contrato', contractId, { message: error.message }); } catch (ignored) {}
@@ -190,7 +201,7 @@ function updateContract(payload) {
       updated.calendarEventId = updateCalendarEvent_(updated);
     } catch (calendarError) {
       calendarPending = true;
-      audit_('CALENDARIO_PENDIENTE', 'Contrato', existing.id, { message: calendarError.message });
+      try { audit_('CALENDARIO_PENDIENTE', 'Contrato', existing.id, { message: calendarError.message }); } catch (ignored) {}
     }
     const saved = updateObject_('Contratos', 'id', existing.id, updated);
     updateObject_('Clientes', 'id', existing.clientId, {
@@ -199,7 +210,14 @@ function updateContract(payload) {
       phone: updated.phone,
       updatedAt: updated.updatedAt
     });
-    audit_('ACTUALIZAR_CONTRATO', 'Contrato', existing.id, { version: updated.version, calendarPending });
+    let initialPaymentRepaired = false;
+    try { initialPaymentRepaired = Boolean(repairInitialPayment_(saved, folder)); }
+    catch (repairError) {
+      try { audit_('ERROR_REPARAR_RECIBO_INICIAL', 'Contrato', existing.id, { message: repairError.message }); }
+      catch (ignored) {}
+    }
+    try { audit_('ACTUALIZAR_CONTRATO', 'Contrato', existing.id, { version: updated.version, calendarPending, initialPaymentRepaired }); }
+    catch (ignored) {}
     return saved;
   } finally {
     lock.releaseLock();
@@ -299,7 +317,7 @@ function addPayment(payload) {
           saved = updateObject_('Contratos', 'id', contract.id, { calendarEventId });
         }
       } catch (calendarError) {
-        audit_('CALENDARIO_PENDIENTE', 'Contrato', contract.id, { message: calendarError.message });
+        try { audit_('CALENDARIO_PENDIENTE', 'Contrato', contract.id, { message: calendarError.message }); } catch (ignored) {}
       }
     }
 
@@ -307,7 +325,8 @@ function addPayment(payload) {
       status: 'COMPLETADO',
       errorMessage: ''
     });
-    audit_('REGISTRAR_PAGO', 'Pago', payment.id, { contractId: contract.id, amount: payment.amount });
+    try { audit_('REGISTRAR_PAGO', 'Pago', payment.id, { contractId: contract.id, amount: payment.amount }); }
+    catch (ignored) {}
     return { contract: saved, payment };
   } catch (error) {
     if (payment && !financialApplied) {
@@ -351,9 +370,10 @@ function cancelContract(payload) {
       markCalendarEventCancelled_(saved);
     } catch (calendarError) {
       calendarPending = true;
-      audit_('CALENDARIO_PENDIENTE', 'Contrato', contract.id, { message: calendarError.message });
+      try { audit_('CALENDARIO_PENDIENTE', 'Contrato', contract.id, { message: calendarError.message }); } catch (ignored) {}
     }
-    audit_('CANCELAR_CONTRATO', 'Contrato', contract.id, { reason, calendarPending });
+    try { audit_('CANCELAR_CONTRATO', 'Contrato', contract.id, { reason, calendarPending }); }
+    catch (ignored) {}
     return saved;
   } finally {
     lock.releaseLock();
@@ -365,8 +385,9 @@ function getPrivateIneUrl(payload) {
   const contract = findObject_('Contratos', 'id', payload && payload.id);
   if (!contract) throw new Error('No se encontró el contrato.');
   const client = findObject_('Clientes', 'id', contract.clientId);
-  if (!client || !client.ineFileId) throw new Error('Este cliente no tiene una identificación guardada.');
-  return DriveApp.getFileById(client.ineFileId).getUrl();
+  const ineFileId = contract.ineFileId || (client && client.ineFileId);
+  if (!ineFileId) throw new Error('Este cliente no tiene una identificación guardada.');
+  return DriveApp.getFileById(ineFileId).getUrl();
 }
 
 function upsertClientForContract_(data, contractNumber, timestamp) {
@@ -376,21 +397,112 @@ function upsertClientForContract_(data, contractNumber, timestamp) {
     normalizeClientIdentity_(client.name) === normalizedName &&
     normalizeClientPhoneKey_(client.phone) === normalizedPhone
   );
-  const ineFileId = data.ineDataUrl
+  const contractIneFileId = data.ineDataUrl
     ? storeIne_(data.ineDataUrl, contractNumber, data.clientName)
     : (existing ? existing.ineFileId : '');
   const clientData = {
     name: String(data.clientName).trim(),
     address: String(data.address).trim(),
     phone: String(data.phone).trim(),
-    ineFileId,
     updatedAt: timestamp
   };
-  if (existing) return updateObject_('Clientes', 'id', existing.id, clientData);
+  if (existing) {
+    if (!existing.ineFileId && contractIneFileId) clientData.ineFileId = contractIneFileId;
+    const saved = updateObject_('Clientes', 'id', existing.id, clientData);
+    saved.contractIneFileId = contractIneFileId;
+    return saved;
+  }
   return appendObject_('Clientes', Object.assign({
     id: Utilities.getUuid(),
+    ineFileId: contractIneFileId,
     createdAt: timestamp
   }, clientData));
+}
+
+function repairInitialPayment_(contract, folder) {
+  const initialDeposit = roundMoney_(contract.initialDeposit || 0);
+  if (initialDeposit <= 0) return null;
+  const initialBalance = roundMoney_(roundMoney_(contract.total) - initialDeposit);
+  const baseRequestId = String(contract.requestId || contract.id || '').trim();
+  if (!baseRequestId) throw new Error('El contrato no tiene un identificador para reparar su abono inicial.');
+  const requestId = `${baseRequestId}:initial`;
+  let payment = findObject_('Pagos', 'requestId', requestId);
+  if (!payment) {
+    payment = listObjects_('Pagos').find(item => {
+      if (String(item.contractId) !== String(contract.id) ||
+          String(item.date || '') !== String(contract.elaborationDate || '') ||
+          (item.requestId && !String(item.note || '').toLowerCase().includes('apartado inicial'))) return false;
+      try { return roundMoney_(item.amount) === initialDeposit; }
+      catch (ignored) { return false; }
+    }) || null;
+    if (payment && !payment.requestId) {
+      payment = updateObject_('Pagos', 'id', payment.id, { requestId });
+    }
+  }
+  if (!payment) {
+    payment = {
+      id: Utilities.getUuid(),
+      requestId,
+      status: 'GENERANDO',
+      contractId: contract.id,
+      contractNumber: contract.contractNumber,
+      date: contract.elaborationDate,
+      amount: initialDeposit,
+      method: 'No indicado',
+      note: 'Apartado inicial',
+      receiptFileId: '',
+      createdBy: contract.createdBy,
+      createdAt: contract.createdAt || nowIso_(),
+      newPaid: initialDeposit,
+      newBalance: initialBalance,
+      errorMessage: ''
+    };
+    appendObject_('Pagos', payment);
+  }
+  if (String(payment.contractId) !== String(contract.id) || roundMoney_(payment.amount) !== initialDeposit) {
+    throw new Error('El abono inicial pendiente no coincide con el contrato.');
+  }
+  if (String(payment.status) === 'COMPLETADO' && payment.receiptFileId) return payment;
+
+  let paidAfterInitial = initialDeposit;
+  let balanceAfterInitial = initialBalance;
+  try {
+    if (payment.newPaid !== '' && payment.newPaid !== undefined && payment.newPaid !== null) {
+      paidAfterInitial = roundMoney_(payment.newPaid);
+    }
+    if (payment.newBalance !== '' && payment.newBalance !== undefined && payment.newBalance !== null) {
+      balanceAfterInitial = roundMoney_(payment.newBalance);
+    }
+  } catch (ignored) {
+    paidAfterInitial = initialDeposit;
+    balanceAfterInitial = initialBalance;
+  }
+
+  try {
+    let receiptFileId = payment.receiptFileId;
+    if (!receiptFileId) {
+      const receipt = generateReceiptPdf_(contract, Object.assign({}, payment, {
+        newPaid: paidAfterInitial,
+        newBalance: balanceAfterInitial
+      }), folder);
+      receiptFileId = receipt.pdfFileId;
+    }
+    return updateObject_('Pagos', 'id', payment.id, {
+      status: 'COMPLETADO',
+      receiptFileId,
+      newPaid: paidAfterInitial,
+      newBalance: balanceAfterInitial,
+      errorMessage: ''
+    });
+  } catch (error) {
+    try {
+      updateObject_('Pagos', 'id', payment.id, {
+        status: 'ERROR',
+        errorMessage: String(error.message || error).slice(0, 500)
+      });
+    } catch (ignored) {}
+    throw error;
+  }
 }
 
 function normalizeClientIdentity_(value) {

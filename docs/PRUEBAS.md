@@ -15,6 +15,9 @@ Ejecuta `pnpm test` antes de compartir cambios. La suite usa exclusivamente nomb
 - Fechas inexistentes, horas fuera de rango e importes no finitos son rechazados.
 - Los importes se normalizan a centavos para liquidar el saldo exactamente.
 - Un `requestId` repetido no registra dos veces el mismo pago.
+- El identificador de reintento sobrevive una recarga de la pestaña sin guardar el contenido del formulario.
+- Reparar un contrato `ERROR` completa o reutiliza su recibo inicial sin volver a sumar el abono.
+- Una identificación nueva no reemplaza la referencia histórica de contratos anteriores.
 
 ## Seguridad
 

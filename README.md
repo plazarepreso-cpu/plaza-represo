@@ -13,7 +13,7 @@ Aplicación web gratuita para administrar clientes, contratos, pagos y agenda de
 - Contrato PDF, recibos, historial de pagos y saldo calculado.
 - Agenda sincronizada con Google Calendar y recordatorios automáticos.
 - Conciliación diaria reparable de eventos y aviso de contratos con saldo a siete días o menos.
-- Identificaciones guardadas en una carpeta privada, separada de los contratos compartidos.
+- Identificaciones guardadas en una carpeta privada, separada de los contratos compartidos y con referencia histórica por contrato.
 - Modo demostración local con información completamente ficticia.
 
 ## Estructura

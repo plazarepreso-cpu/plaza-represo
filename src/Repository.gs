@@ -1,6 +1,6 @@
 function getDatabase_() {
   const id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
-  if (!id) throw new Error('El sistema no está configurado. Ejecuta setupSystem primero.');
+  if (!id) throw new Error('El sistema no está configurado. Ejecuta setupSystem_ desde el editor primero.');
   return SpreadsheetApp.openById(id);
 }
 

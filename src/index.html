@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Plaza Represo</title>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
   <style>
     :root {
       --ink: #171717;
@@ -19,6 +19,8 @@
       --shadow: 0 18px 45px rgba(17, 24, 39, .09);
     }
     * { box-sizing: border-box; }
+    .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
+    .owner-only:not(.owner-visible) { display: none !important; }
     body { margin: 0; color: var(--ink); background: #f4f4f2; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     button, input, select, textarea { font: inherit; }
     button { cursor: pointer; }
@@ -35,8 +37,10 @@
     .nav-icon { width: 23px; text-align: center; }
     .side-note { margin-top: auto; border: 1px solid rgba(255,255,255,.11); background: rgba(255,255,255,.05); border-radius: 14px; padding: 13px; color: #d1d5db; font-size: 12px; line-height: 1.45; }
     main { min-width: 0; }
-    .topbar { height: 78px; padding: 0 32px; background: rgba(255,255,255,.88); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }
+    .topbar { min-height: 78px; padding: 10px 32px; background: rgba(255,255,255,.88); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 18px; position: sticky; top: 0; z-index: 10; }
     .topbar h2 { margin: 0; font-size: 21px; }
+    .topbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+    .refresh-meta { color: var(--muted); font-size: 10px; text-align: right; line-height: 1.35; white-space: pre-line; }
     .user-chip { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px 7px 8px; }
     .avatar { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #111; background: var(--orange); font-weight: 800; }
     .user-meta { font-size: 12px; line-height: 1.2; }
@@ -80,9 +84,12 @@
     .money-row strong { white-space: nowrap; }
     .status { display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 9px; font-size: 10px; font-weight: 850; letter-spacing: .04em; }
     .status.CONFIRMADO { color: #9a3412; background: #ffedd5; }
-    .status.PAGADO { color: #166534; background: #dcfce7; }
+    .status.PAGADO, .status.COMPLETADO { color: #166534; background: #dcfce7; }
     .status.CANCELADO { color: #991b1b; background: #fee2e2; }
     .status.ERROR { color: #7f1d1d; background: #fecaca; }
+    .status.GENERANDO { color: #854d0e; background: #fef9c3; }
+    .status.ACTIVA, .status.INSTALADA { color: #166534; background: #dcfce7; }
+    .status.INACTIVA, .status.PENDIENTE { color: #854d0e; background: #fef3c7; }
     .form-card { padding: 0; overflow: hidden; }
     .form-section { padding: 23px; border-bottom: 1px solid var(--line); }
     .form-section:last-child { border: 0; }
@@ -96,12 +103,16 @@
     label { display: block; font-size: 12px; font-weight: 750; color: #444; margin-bottom: 6px; }
     input, select, textarea { width: 100%; border: 1px solid #d8d8d5; border-radius: 10px; background: #fff; padding: 10px 11px; color: var(--ink); outline: none; }
     input:focus, select:focus, textarea:focus { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(245,158,11,.12); }
+    input[type="checkbox"] { width: auto; accent-color: var(--orange-dark); }
     textarea { min-height: 78px; resize: vertical; }
     .upload-box { display: grid; grid-template-columns: 170px 1fr; gap: 18px; padding: 16px; border: 1.5px dashed #d6a34d; border-radius: 14px; background: #fffcf6; }
     .ine-preview { height: 108px; display: grid; place-items: center; border-radius: 10px; background: #ecebe7; overflow: hidden; color: var(--muted); font-size: 12px; text-align: center; }
     .ine-preview img { width: 100%; height: 100%; object-fit: cover; }
     .upload-copy p { color: var(--muted); margin: 5px 0 12px; font-size: 12px; }
     .warning { padding: 11px 13px; border-left: 4px solid var(--orange); background: #fffbeb; color: #713f12; border-radius: 8px; font-size: 12px; line-height: 1.45; }
+    .check-field { display: flex; align-items: flex-start; gap: 10px; padding: 13px; border: 1px solid #f1c979; border-radius: 11px; background: #fffcf4; }
+    .check-field input { margin: 3px 0 0; flex: 0 0 auto; }
+    .check-field label { margin: 0; line-height: 1.45; }
     .preview-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 11px; margin-top: 13px; }
     .preview-cell { padding: 12px; border-radius: 11px; background: var(--soft); }
     .preview-cell span { color: var(--muted); font-size: 10px; text-transform: uppercase; }
@@ -128,6 +139,8 @@
     .dialog-close { color: white; background: transparent; border: 0; font-size: 24px; }
     .dialog-body { padding: 22px; max-height: 70vh; overflow: auto; }
     .dialog-actions { padding: 16px 22px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 10px; }
+    .cancel-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .cancel-controls input { width: min(260px, 48vw); }
     .toast { position: fixed; right: 22px; bottom: 22px; z-index: 100; max-width: 390px; padding: 13px 16px; border-radius: 12px; color: white; background: #171717; box-shadow: 0 14px 40px rgba(0,0,0,.24); transform: translateY(130%); transition: .2s; }
     .toast.show { transform: translateY(0); }
     .toast.error { background: #991b1b; }
@@ -137,6 +150,11 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .demo-banner { display: none; margin-bottom: 17px; padding: 12px 14px; border-radius: 12px; color: #7c2d12; background: #ffedd5; border: 1px solid #fed7aa; font-size: 12px; }
     .demo-banner.show { display: block; }
+    .demo-banner-inner { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    .automation-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .automation-metric { padding: 18px; }
+    .automation-metric span { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+    .automation-metric strong { display: block; margin-top: 7px; overflow-wrap: anywhere; }
     @media (max-width: 1050px) {
       .app { grid-template-columns: 84px 1fr; }
       .sidebar { padding: 20px 12px; }
@@ -153,18 +171,22 @@
       nav { width: 100%; display: flex; justify-content: space-around; }
       .nav-btn { width: auto; flex: 1; font-size: 11px; flex-direction: column; gap: 2px; padding: 6px 3px; }
       .nav-label { display: block; }
-      .topbar { height: 66px; padding: 0 15px; }
+      .topbar { min-height: 66px; padding: 8px 15px; }
       .topbar h2 { font-size: 17px; }
+      .refresh-meta { display: none; }
       .user-meta { display: none; }
       .content { padding: 20px 14px 92px; }
       .page-head { align-items: start; flex-direction: column; }
       .page-head h3 { font-size: 23px; }
-      .kpis, .dashboard-grid, .agenda-grid { grid-template-columns: 1fr; }
+      .kpis, .dashboard-grid, .agenda-grid, .automation-grid { grid-template-columns: 1fr; }
       .field, .field.half { grid-column: 1 / -1; }
       .upload-box { grid-template-columns: 1fr; }
       .preview-strip { grid-template-columns: repeat(2, 1fr); }
       .filters { width: 100%; flex-direction: column; }
       .filters input { min-width: 0; }
+      .demo-banner-inner { align-items: flex-start; flex-direction: column; }
+      .dialog-actions { align-items: stretch; flex-direction: column; }
+      .cancel-controls input { width: 100%; }
     }
   </style>
 </head>
@@ -172,13 +194,14 @@
   <div class="app">
     <aside class="sidebar">
       <div class="brand"><div class="brand-mark">PR</div><div><h1>PLAZA REPRESO</h1><span>EVENTOS</span></div></div>
-      <nav>
-        <button class="nav-btn active" data-view="dashboard"><span class="nav-icon">⌂</span><span class="nav-label">Inicio</span></button>
-        <button class="nav-btn owner-only" data-view="new-contract"><span class="nav-icon">＋</span><span class="nav-label">Nuevo contrato</span></button>
-        <button class="nav-btn" data-view="agenda"><span class="nav-icon">▦</span><span class="nav-label">Agenda</span></button>
-        <button class="nav-btn" data-view="contracts"><span class="nav-icon">▤</span><span class="nav-label">Contratos</span></button>
-        <button class="nav-btn" data-view="payments"><span class="nav-icon">$</span><span class="nav-label">Pagos</span></button>
-        <button class="nav-btn" data-view="clients"><span class="nav-icon">●</span><span class="nav-label">Clientes</span></button>
+      <nav aria-label="Navegación principal">
+        <button class="nav-btn active" type="button" data-view="dashboard" aria-current="page"><span class="nav-icon">⌂</span><span class="nav-label">Inicio</span></button>
+        <button class="nav-btn owner-only" type="button" data-view="new-contract"><span class="nav-icon">＋</span><span class="nav-label">Nuevo contrato</span></button>
+        <button class="nav-btn" type="button" data-view="agenda"><span class="nav-icon">▦</span><span class="nav-label">Agenda</span></button>
+        <button class="nav-btn" type="button" data-view="contracts"><span class="nav-icon">▤</span><span class="nav-label">Contratos</span></button>
+        <button class="nav-btn" type="button" data-view="payments"><span class="nav-icon">$</span><span class="nav-label">Pagos</span></button>
+        <button class="nav-btn" type="button" data-view="clients"><span class="nav-icon">●</span><span class="nav-label">Clientes</span></button>
+        <button class="nav-btn owner-only" type="button" data-view="automations"><span class="nav-icon">⚙</span><span class="nav-label">Automatizaciones</span></button>
       </nav>
       <div class="side-note">La agenda, contratos y saldos se actualizan para todos. Las identificaciones permanecen privadas.</div>
     </aside>
@@ -186,13 +209,17 @@
     <main>
       <header class="topbar">
         <h2 id="viewTitle">Resumen general</h2>
-        <div class="user-chip"><div class="avatar" id="avatar">P</div><div class="user-meta"><strong id="userEmail">Cargando…</strong><span id="userRole">—</span></div></div>
+        <div class="topbar-actions">
+          <div class="refresh-meta" id="lastUpdated" aria-live="polite">Sin actualizar</div>
+          <button class="btn btn-ghost btn-small" type="button" id="refreshButton" aria-label="Actualizar datos">↻ Actualizar</button>
+          <div class="user-chip"><div class="avatar" id="avatar" aria-hidden="true">P</div><div class="user-meta"><strong id="userEmail">Cargando…</strong><span id="userRole">—</span></div></div>
+        </div>
       </header>
       <div class="content">
-        <div class="demo-banner" id="demoBanner"><strong>Modo demostración.</strong> Los datos son ficticios y se guardan solo en este navegador. No subas una INE real aquí.</div>
+        <div class="demo-banner" id="demoBanner"><div class="demo-banner-inner"><div><strong>Modo demostración.</strong> Usa solo datos e identificaciones ficticias. La imagen se simula durante el flujo y no se persiste.</div><button class="btn btn-ghost btn-small" type="button" id="resetDemoButton">Restablecer demo</button></div></div>
 
         <section class="view active" id="view-dashboard">
-          <div class="page-head"><div><h3>Buenos días</h3><p>Este es el estado actual de Plaza Represo.</p></div><button class="btn btn-primary owner-only" data-go="new-contract">＋ Crear contrato</button></div>
+          <div class="page-head"><div><h3>Buenos días</h3><p>Este es el estado actual de Plaza Represo.</p></div><button class="btn btn-primary owner-only" type="button" data-go="new-contract">＋ Crear contrato</button></div>
           <div class="grid kpis">
             <div class="card kpi"><div class="kpi-label">Próximos eventos</div><div class="kpi-value" id="kpiEvents">0</div><div class="kpi-detail">Agenda confirmada</div></div>
             <div class="card kpi"><div class="kpi-label">Contratos activos</div><div class="kpi-value" id="kpiContracts">0</div><div class="kpi-detail">Sin cancelados</div></div>
@@ -200,7 +227,7 @@
             <div class="card kpi"><div class="kpi-label">Saldo pendiente</div><div class="kpi-value" id="kpiBalance">$0</div><div class="kpi-detail">Por liquidar</div></div>
           </div>
           <div class="grid dashboard-grid">
-            <div class="card"><div class="card-head"><h4>Próximos eventos</h4><button class="btn btn-ghost btn-small" data-go="agenda">Ver agenda</button></div><div class="card-body list" id="upcomingList"></div></div>
+            <div class="card"><div class="card-head"><h4>Próximos eventos</h4><button class="btn btn-ghost btn-small" type="button" data-go="agenda">Ver agenda</button></div><div class="card-body list" id="upcomingList"></div></div>
             <div class="card"><div class="card-head"><h4>Resumen de cobros</h4></div><div class="card-body" id="paymentSummary"></div></div>
           </div>
         </section>
@@ -214,10 +241,10 @@
                 <div class="ine-preview" id="inePreview">Vista previa<br>de la INE</div>
                 <div class="upload-copy">
                   <label for="ineFile">Fotografía frontal de la INE</label>
-                  <input type="file" id="ineFile" accept="image/jpeg,image/png,image/webp">
-                  <p>El OCR se ejecuta en este navegador. El sistema nunca acepta los datos sin confirmación.</p>
+                  <input type="file" id="ineFile" accept="image/jpeg,image/png,image/webp" aria-describedby="ineHelp ocrStatus">
+                  <p id="ineHelp">Solo imagen ficticia JPG, PNG o WebP, máximo 5 MB. El OCR se ejecuta en este navegador y requiere revisión humana.</p>
                   <button class="btn btn-dark btn-small" type="button" id="ocrButton">Leer nombre y domicilio</button>
-                  <div id="ocrStatus" style="margin-top:8px;color:var(--muted);font-size:12px"></div>
+                  <div id="ocrStatus" role="status" aria-live="polite" style="margin-top:8px;color:var(--muted);font-size:12px"></div>
                 </div>
               </div>
               <div class="warning" style="margin-top:14px">Durante las pruebas utiliza únicamente identificaciones ficticias. En producción la foto se guardará en la carpeta privada del propietario.</div>
@@ -225,29 +252,30 @@
             <div class="form-section">
               <div class="section-title"><div class="step">2</div><h4>Confirmar cliente</h4></div>
               <div class="form-grid">
-                <div class="field half"><label>Nombre completo</label><input name="clientName" required autocomplete="off"></div>
-                <div class="field half"><label>Teléfono</label><input name="phone" required autocomplete="off"></div>
-                <div class="field full"><label>Domicilio</label><input name="address" required autocomplete="off"></div>
+                <div class="field half"><label for="clientName">Nombre completo</label><input id="clientName" name="clientName" required autocomplete="off"></div>
+                <div class="field half"><label for="clientPhone">Teléfono</label><input id="clientPhone" name="phone" required autocomplete="off"></div>
+                <div class="field full"><label for="clientAddress">Domicilio</label><input id="clientAddress" name="address" required autocomplete="off"></div>
               </div>
             </div>
             <div class="form-section">
               <div class="section-title"><div class="step">3</div><h4>Datos del evento</h4></div>
               <div class="form-grid">
-                <div class="field"><label>Fecha de elaboración</label><input name="elaborationDate" type="date" required></div>
-                <div class="field"><label>Fecha del evento</label><input name="eventDate" type="date" required></div>
-                <div class="field"><label>Tipo de evento</label><input name="eventType" required placeholder="Ej. Fiesta infantil"></div>
-                <div class="field"><label>Hora de inicio</label><input name="startTime" type="time" required value="18:00"></div>
-                <div class="field"><label>Hora de término</label><input name="endTime" type="time" required value="23:00"></div>
-                <div class="field"><label>Duración</label><input value="5 horas" disabled></div>
+                <div class="field"><label for="elaborationDate">Fecha de elaboración</label><input id="elaborationDate" name="elaborationDate" type="date" required></div>
+                <div class="field"><label for="eventDate">Fecha del evento</label><input id="eventDate" name="eventDate" type="date" required></div>
+                <div class="field"><label for="eventType">Tipo de evento</label><input id="eventType" name="eventType" required placeholder="Ej. Fiesta infantil"></div>
+                <div class="field"><label for="startTime">Hora de inicio</label><input id="startTime" name="startTime" type="time" required value="18:00"></div>
+                <div class="field"><label for="endTime">Hora de término</label><input id="endTime" name="endTime" type="time" required value="23:00"></div>
+                <div class="field"><label for="eventDuration">Duración</label><input id="eventDuration" value="5 horas" disabled></div>
               </div>
             </div>
             <div class="form-section">
               <div class="section-title"><div class="step">4</div><h4>Pago y revisión</h4></div>
               <div class="form-grid">
-                <div class="field"><label>Pago total</label><input name="total" type="number" min="1" step="0.01" required></div>
-                <div class="field"><label>Abono inicial</label><input name="initialDeposit" type="number" min="0" step="0.01" required></div>
-                <div class="field"><label>Método</label><select name="paymentMethod"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>No indicado</option></select></div>
-                <div class="field full"><label>Motivo si el total cambia de la tarifa</label><input name="overrideReason" placeholder="Déjalo vacío si se usa la tarifa automática"></div>
+                <div class="field"><label for="contractTotal">Pago total</label><input id="contractTotal" name="total" type="number" min="1" step="0.01" required></div>
+                <div class="field"><label for="initialDeposit">Abono inicial</label><input id="initialDeposit" name="initialDeposit" type="number" min="0" step="0.01" required></div>
+                <div class="field"><label for="initialPaymentMethod">Método</label><select id="initialPaymentMethod" name="paymentMethod"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>No indicado</option></select></div>
+                <div class="field full"><label for="overrideReason">Motivo si el total cambia de la tarifa</label><input id="overrideReason" name="overrideReason" placeholder="Déjalo vacío si se usa la tarifa automática"></div>
+                <div class="field full check-field"><input id="reviewConfirmed" name="reviewConfirmed" type="checkbox" value="true" required><label for="reviewConfirmed">Confirmo que revisé el nombre y el domicilio, y que la identificación utilizada es ficticia y sin validez oficial.</label></div>
               </div>
               <div class="preview-strip">
                 <div class="preview-cell"><span>Día</span><strong id="previewDay">—</strong></div>
@@ -266,7 +294,7 @@
         </section>
 
         <section class="view" id="view-contracts">
-          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios.</p></div><div class="filters"><input id="contractSearch" placeholder="Buscar número o cliente"><select id="contractStatus"><option value="">Todos</option><option>CONFIRMADO</option><option>PAGADO</option><option>CANCELADO</option><option>ERROR</option></select></div></div>
+          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios.</p></div><div class="filters"><div><label class="sr-only" for="contractSearch">Buscar contrato</label><input id="contractSearch" placeholder="Buscar número o cliente"></div><div><label class="sr-only" for="contractStatus">Filtrar por estado</label><select id="contractStatus"><option value="">Todos</option><option>CONFIRMADO</option><option>PAGADO</option><option>CANCELADO</option><option>ERROR</option></select></div></div></div>
           <div class="card table-wrap"><table class="data"><thead><tr><th>Contrato</th><th>Evento</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th></th></tr></thead><tbody id="contractsBody"></tbody></table></div>
         </section>
 
@@ -276,11 +304,11 @@
             <form class="card form-card owner-only" id="paymentForm">
               <div class="card-head"><h4>Registrar abono</h4></div>
               <div class="card-body form-grid">
-                <div class="field full"><label>Contrato</label><select name="contractId" id="paymentContract" required></select></div>
-                <div class="field half"><label>Fecha</label><input name="date" type="date" required></div>
-                <div class="field half"><label>Cantidad</label><input name="amount" type="number" min="0.01" step="0.01" required></div>
-                <div class="field half"><label>Método</label><select name="method"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option></select></div>
-                <div class="field half"><label>Nota</label><input name="note" value="Abono al contrato"></div>
+                <div class="field full"><label for="paymentContract">Contrato</label><select name="contractId" id="paymentContract" required></select></div>
+                <div class="field half"><label for="paymentDate">Fecha</label><input id="paymentDate" name="date" type="date" required></div>
+                <div class="field half"><label for="paymentAmount">Cantidad</label><input id="paymentAmount" name="amount" type="number" min="0.01" step="0.01" required></div>
+                <div class="field half"><label for="paymentMethod">Método</label><select id="paymentMethod" name="method"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option></select></div>
+                <div class="field half"><label for="paymentNote">Nota</label><input id="paymentNote" name="note" value="Abono al contrato"></div>
                 <div class="field full"><button class="btn btn-primary" type="submit" style="width:100%">Guardar y generar recibo</button></div>
               </div>
             </form>
@@ -289,192 +317,993 @@
         </section>
 
         <section class="view" id="view-clients">
-          <div class="page-head"><div><h3>Clientes</h3><p>Información contractual sin exponer la fotografía de la INE.</p></div><input id="clientSearch" style="max-width:300px" placeholder="Buscar cliente"></div>
+          <div class="page-head"><div><h3>Clientes</h3><p>Información contractual sin exponer la fotografía de la INE.</p></div><div><label class="sr-only" for="clientSearch">Buscar cliente</label><input id="clientSearch" style="max-width:300px" placeholder="Buscar cliente"></div></div>
           <div class="card table-wrap"><table class="data"><thead><tr><th>Nombre</th><th>Domicilio</th><th>Teléfono</th><th>INE privada</th><th>Última actualización</th></tr></thead><tbody id="clientsBody"></tbody></table></div>
+        </section>
+
+        <section class="view owner-only" id="view-automations">
+          <div class="page-head"><div><h3>Automatizaciones</h3><p>Estado de tareas programadas y ejecución manual para el propietario.</p></div><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-ghost" type="button" id="installAutomationsButton">Instalar o reparar</button><button class="btn btn-primary" type="button" id="runAutomationButton">Ejecutar ahora</button></div></div>
+          <div class="grid automation-grid" id="automationSummary"></div>
+          <div class="card" style="margin-top:18px"><div class="card-head"><h4>Detalle</h4></div><div class="card-body" id="automationDetail"></div></div>
         </section>
       </div>
     </main>
   </div>
 
-  <dialog id="contractDialog">
+  <dialog id="contractDialog" aria-labelledby="dialogTitle">
     <form id="editForm" method="dialog">
-      <div class="dialog-head"><h3 id="dialogTitle">Contrato</h3><button class="dialog-close" type="button" id="dialogClose">×</button></div>
+      <div class="dialog-head"><h3 id="dialogTitle">Contrato</h3><button class="dialog-close" type="button" id="dialogClose" aria-label="Cerrar contrato">×</button></div>
       <div class="dialog-body"><div class="form-grid" id="dialogFields"></div></div>
-      <div class="dialog-actions"><div><button class="btn btn-danger btn-small owner-only" type="button" id="cancelContractButton">Cancelar contrato</button></div><div style="display:flex;gap:8px"><button class="btn btn-ghost" type="button" id="closeContractButton">Cerrar</button><button class="btn btn-primary owner-only" type="submit">Guardar nueva versión</button></div></div>
+      <div class="dialog-actions"><div class="cancel-controls owner-only" id="cancelControls"><label class="sr-only" for="cancelReason">Motivo de cancelación</label><input id="cancelReason" placeholder="Motivo de cancelación"><button class="btn btn-danger btn-small" type="button" id="cancelContractButton">Cancelar contrato</button></div><div style="display:flex;gap:8px"><button class="btn btn-ghost" type="button" id="closeContractButton">Cerrar</button><button class="btn btn-primary owner-only" type="submit">Guardar nueva versión</button></div></div>
     </form>
   </dialog>
-  <div class="toast" id="toast"></div>
-  <div class="loading" id="loading"><div><div class="loader"></div><div id="loadingText" style="margin-top:12px;font-weight:700">Cargando…</div></div></div>
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+  <div class="loading" id="loading" role="status" aria-live="polite" aria-busy="false"><div><div class="loader" aria-hidden="true"></div><div id="loadingText" style="margin-top:12px;font-weight:700">Cargando…</div></div></div>
 
   <script>
-    const state = { data: null, selectedContract: null, ineDataUrl: '', isDemo: !(window.google && google.script && google.script.run) };
-    const viewTitles = { dashboard: 'Resumen general', 'new-contract': 'Nuevo contrato', agenda: 'Agenda compartida', contracts: 'Contratos', payments: 'Pagos y recibos', clients: 'Clientes' };
-    const money = value => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(value || 0));
+    const DEMO_STORAGE_KEY = 'plaza-represo-demo-v2';
+    const PENDING_REQUESTS_KEY = 'plaza-represo-pending-requests-v1';
+    const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+    const ACCEPTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    const NON_OPERATIONAL_STATUSES = new Set(['CANCELADO', 'ERROR', 'GENERANDO']);
+    const state = {
+      data: null,
+      selectedContract: null,
+      ineDataUrl: '',
+      pendingRequests: {},
+      isDemo: !window.google?.script?.run,
+      mockMemory: null,
+      refreshing: false,
+      toastTimer: null,
+      automationLastSummary: null,
+      automationLastRunAt: '',
+      formDirty: { contract: false, payment: false, edit: false }
+    };
+    const viewTitles = { dashboard: 'Resumen general', 'new-contract': 'Nuevo contrato', agenda: 'Agenda compartida', contracts: 'Contratos', payments: 'Pagos y recibos', clients: 'Clientes', automations: 'Automatizaciones' };
+    const money = value => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
     const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Hermosillo' });
-    const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
-    const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const nowLocalIso = () => {
+      const time = new Intl.DateTimeFormat('en-GB', { timeZone:'America/Hermosillo', hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23' }).format(new Date());
+      return `${today()}T${time}`;
+    };
+    const uuid = () => (window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[character]));
+    const roundMoney = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
-    function showLoading(text = 'Cargando…') { document.getElementById('loadingText').textContent = text; document.getElementById('loading').classList.add('show'); }
-    function hideLoading() { document.getElementById('loading').classList.remove('show'); }
-    function toast(message, error = false) { const el = document.getElementById('toast'); el.textContent = message; el.className = `toast show${error ? ' error' : ''}`; setTimeout(() => el.className = 'toast', 3500); }
+    function showLoading(text = 'Cargando…') {
+      document.getElementById('loadingText').textContent = text;
+      const loading = document.getElementById('loading');
+      loading.classList.add('show');
+      loading.setAttribute('aria-busy', 'true');
+    }
+
+    function hideLoading() {
+      const loading = document.getElementById('loading');
+      loading.classList.remove('show');
+      loading.setAttribute('aria-busy', 'false');
+    }
+
+    function toast(message, error = false) {
+      const element = document.getElementById('toast');
+      clearTimeout(state.toastTimer);
+      element.textContent = message;
+      element.className = `toast show${error ? ' error' : ''}`;
+      element.setAttribute('role', error ? 'alert' : 'status');
+      element.setAttribute('aria-live', error ? 'assertive' : 'polite');
+      state.toastTimer = setTimeout(() => { element.className = 'toast'; }, 4000);
+    }
 
     function callServer(method, payload) {
-      if (state.isDemo) return Promise.resolve(mockApi(method, payload));
+      if (state.isDemo) return Promise.resolve().then(() => mockApi(method, payload));
       return new Promise((resolve, reject) => {
-        const runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(error => reject(new Error(error.message || error)));
-        payload === undefined ? runner[method]() : runner[method](payload);
+        const runner = window.google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(error => reject(new Error(error?.message || String(error))));
+        if (payload === undefined) runner[method]();
+        else runner[method](payload);
       });
     }
 
+    function pendingRequestFingerprint(payload, fields) {
+      const source = fields.map(field => `${field}:${String(payload[field] ?? '')}`).join('\u001f');
+      let first = 2166136261;
+      let second = 2654435769;
+      for (let index = 0; index < source.length; index += 1) {
+        const code = source.charCodeAt(index);
+        first = Math.imul(first ^ code, 16777619);
+        second = Math.imul(second ^ code, 2246822519);
+      }
+      return `${(first >>> 0).toString(16).padStart(8, '0')}${(second >>> 0).toString(16).padStart(8, '0')}`;
+    }
+
+    function readPendingRequests() {
+      try {
+        const parsed = JSON.parse(window.sessionStorage.getItem(PENDING_REQUESTS_KEY) || '{}');
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          state.pendingRequests = parsed;
+          return parsed;
+        }
+      } catch (ignored) { /* Se conserva el respaldo en memoria. */ }
+      return state.pendingRequests || {};
+    }
+
+    function writePendingRequests(records) {
+      state.pendingRequests = Object.assign({}, records);
+      try { window.sessionStorage.setItem(PENDING_REQUESTS_KEY, JSON.stringify(state.pendingRequests)); }
+      catch (ignored) { /* El reintento sigue funcionando durante la sesión en memoria. */ }
+    }
+
+    function getOrCreatePendingRequestId(kind, fingerprint) {
+      const records = readPendingRequests();
+      const existing = records[kind];
+      if (existing && existing.fingerprint === fingerprint && existing.requestId) return existing.requestId;
+      const requestId = uuid();
+      writePendingRequests(Object.assign({}, records, { [kind]: { requestId, fingerprint } }));
+      return requestId;
+    }
+
+    function clearPendingRequestId(kind) {
+      const records = Object.assign({}, readPendingRequests());
+      delete records[kind];
+      writePendingRequests(records);
+    }
+
+    function offsetDate(dateText, days) {
+      const date = new Date(`${dateText}T12:00:00`);
+      date.setDate(date.getDate() + days);
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+
+    function dayName(dateText) {
+      if (!isValidIsoDate(dateText)) return '—';
+      const date = new Date(`${dateText}T12:00:00`);
+      return ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][date.getDay()];
+    }
+
+    function isValidIsoDate(value) {
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+      const [year, month, day] = value.split('-').map(Number);
+      const date = new Date(0);
+      date.setUTCHours(0, 0, 0, 0);
+      date.setUTCFullYear(year, month - 1, day);
+      return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+    }
+
+    function isValidTime(value) {
+      return typeof value === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
+    }
+
+    function dateRate(dateText, config) {
+      const day = new Date(`${dateText}T12:00:00`).getDay();
+      return Number(day === 0 || day === 6 ? config.weekendRate : config.weekdayRate);
+    }
+
     function mockSeed() {
+      const baseDate = today();
+      const firstEventDate = offsetDate(baseDate, 5);
+      const secondEventDate = offsetDate(baseDate, 12);
+      const config = { weekdayRate: 3500, weekendRate: 4500, eventHours: 5, nextContractNumber: 'C.2625', timeZone: 'America/Hermosillo' };
+      const firstTotal = dateRate(firstEventDate, config);
+      const firstDeposit = 1234.56;
+      const secondTotal = 4125.75;
+      const secondDeposit = 2000.25;
+      const firstUpdated = `${baseDate}T09:15:00`;
+      const secondUpdated = `${baseDate}T10:30:00`;
       return {
         user: { email: 'propietario@demo.local', role: 'PROPIETARIO' },
-        config: { weekdayRate: 3500, weekendRate: 4500, eventHours: 5, nextContractNumber: 'C.2625', timeZone: 'America/Hermosillo' },
+        config,
         system: { configured: false },
+        automation: { installed: false, status: 'PENDIENTE', triggerCount: 0, lastRunAt: '', lastSummary: 'Aún no se ejecutan automatizaciones en esta demostración.' },
         contracts: [
-          { id:'demo-1', contractNumber:'C.2623', version:1, status:'CONFIRMADO', elaborationDate:'2026-07-10', eventDate:'2026-07-18', eventDay:'Sábado', startTime:'18:00', endTime:'23:00', eventType:'Fiesta infantil ficticia', clientId:'client-1', clientName:'Mariana Ejemplo Navarro', address:'Calle Demostración 123, Col. Modelo', phone:'000 000 0000', total:4500, initialDeposit:2250, paid:2250, balance:2250, currentPdfFileId:'', updatedAt:'2026-07-10T12:00:00' },
-          { id:'demo-2', contractNumber:'C.2624', version:1, status:'PAGADO', elaborationDate:'2026-07-11', eventDate:'2026-07-24', eventDay:'Viernes', startTime:'19:00', endTime:'00:00', eventType:'Reunión familiar ficticia', clientId:'client-2', clientName:'Carlos Prueba Ortega', address:'Avenida Ejemplo 45, Col. Ensayo', phone:'000 000 0001', total:3500, initialDeposit:1750, paid:3500, balance:0, currentPdfFileId:'', updatedAt:'2026-07-12T10:00:00' }
+          { id:'demo-1', requestId:'seed-contract-1', contractNumber:'C.2623', version:1, status:'CONFIRMADO', elaborationDate:baseDate, eventDate:firstEventDate, eventDay:dayName(firstEventDate), startTime:'18:00', endTime:'23:00', eventType:'Fiesta infantil ficticia', clientId:'client-1', clientName:'Mariana Ejemplo Navarro', address:'Calle Demostración 123, Col. Modelo', phone:'000 000 0000', total:firstTotal, initialDeposit:firstDeposit, paid:firstDeposit, balance:roundMoney(firstTotal-firstDeposit), overrideReason:'', currentPdfFileId:'', updatedAt:firstUpdated },
+          { id:'demo-2', requestId:'seed-contract-2', contractNumber:'C.2624', version:2, status:'PAGADO', elaborationDate:baseDate, eventDate:secondEventDate, eventDay:dayName(secondEventDate), startTime:'19:00', endTime:'00:00', eventType:'Reunión familiar ficticia', clientId:'client-2', clientName:'Carlos Prueba Ortega', address:'Avenida Ejemplo 45, Col. Ensayo', phone:'000 000 0001', total:secondTotal, initialDeposit:secondDeposit, paid:secondTotal, balance:0, overrideReason:'Tarifa ficticia de demostración con centavos', currentPdfFileId:'', updatedAt:secondUpdated }
         ],
         clients: [
-          { id:'client-1', name:'Mariana Ejemplo Navarro', address:'Calle Demostración 123, Col. Modelo', phone:'000 000 0000', hasIne:false, updatedAt:'2026-07-10T12:00:00' },
-          { id:'client-2', name:'Carlos Prueba Ortega', address:'Avenida Ejemplo 45, Col. Ensayo', phone:'000 000 0001', hasIne:false, updatedAt:'2026-07-12T10:00:00' }
+          { id:'client-1', name:'Mariana Ejemplo Navarro', address:'Calle Demostración 123, Col. Modelo', phone:'000 000 0000', hasIne:false, ineSimulated:true, updatedAt:firstUpdated },
+          { id:'client-2', name:'Carlos Prueba Ortega', address:'Avenida Ejemplo 45, Col. Ensayo', phone:'000 000 0001', hasIne:false, ineSimulated:true, updatedAt:secondUpdated }
         ],
         payments: [
-          { id:'pay-2', contractId:'demo-2', contractNumber:'C.2624', date:'2026-07-12', amount:1750, method:'Transferencia', note:'Liquidación', createdAt:'2026-07-12T10:00:00' },
-          { id:'pay-1', contractId:'demo-1', contractNumber:'C.2623', date:'2026-07-10', amount:2250, method:'Efectivo', note:'Apartado inicial', createdAt:'2026-07-10T12:00:00' }
+          { id:'pay-3', requestId:'seed-payment-3', status:'COMPLETADO', contractId:'demo-2', contractNumber:'C.2624', date:baseDate, amount:2125.50, method:'Transferencia', note:'Liquidación ficticia', receiptFileId:'', createdAt:secondUpdated },
+          { id:'pay-2', requestId:'seed-payment-2', status:'COMPLETADO', contractId:'demo-2', contractNumber:'C.2624', date:baseDate, amount:secondDeposit, method:'Efectivo', note:'Apartado inicial', receiptFileId:'', createdAt:`${baseDate}T10:00:00` },
+          { id:'pay-1', requestId:'seed-payment-1', status:'COMPLETADO', contractId:'demo-1', contractNumber:'C.2623', date:baseDate, amount:firstDeposit, method:'Efectivo', note:'Apartado inicial', receiptFileId:'', createdAt:firstUpdated }
         ]
       };
     }
 
-    function getMock() { const saved = localStorage.getItem('plaza-represo-demo-v1'); if (saved) return JSON.parse(saved); const seed = mockSeed(); localStorage.setItem('plaza-represo-demo-v1', JSON.stringify(seed)); return seed; }
-    function saveMock(data) { localStorage.setItem('plaza-represo-demo-v1', JSON.stringify(data)); }
-    function mockApi(method, payload) {
+    function validMockDatabase(value) {
+      return Boolean(value && value.config && value.user && Array.isArray(value.contracts) && Array.isArray(value.clients) && Array.isArray(value.payments));
+    }
+
+    function saveMock(data) {
+      state.mockMemory = data;
+      try { window.localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(data)); }
+      catch (ignored) { /* El modo demo continúa en memoria si el navegador bloquea el almacenamiento. */ }
+    }
+
+    function getMock() {
+      if (validMockDatabase(state.mockMemory)) return state.mockMemory;
+      try {
+        const saved = window.localStorage.getItem(DEMO_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (validMockDatabase(parsed)) {
+            state.mockMemory = parsed;
+            return parsed;
+          }
+          window.localStorage.removeItem(DEMO_STORAGE_KEY);
+        }
+      } catch (ignored) {
+        try { window.localStorage.removeItem(DEMO_STORAGE_KEY); } catch (storageIgnored) {}
+      }
+      const seed = mockSeed();
+      saveMock(seed);
+      return seed;
+    }
+
+    function eventDurationMinutes(startTime, endTime) {
+      if (!isValidTime(startTime) || !isValidTime(endTime)) return NaN;
+      const start = String(startTime || '').split(':').map(Number);
+      const end = String(endTime || '').split(':').map(Number);
+      if (start.length < 2 || end.length < 2 || [...start, ...end].some(value => !Number.isFinite(value))) return NaN;
+      const startMinutes = start[0] * 60 + start[1];
+      let endMinutes = end[0] * 60 + end[1];
+      if (endMinutes <= startMinutes) endMinutes += 24 * 60;
+      return endMinutes - startMinutes;
+    }
+
+    function validateMockContract(payload, db, excludingId = '') {
+      ['elaborationDate', 'eventDate', 'startTime', 'endTime', 'eventType', 'clientName', 'address', 'phone'].forEach(field => {
+        if (!String(payload[field] || '').trim()) throw new Error(`Falta el campo ${field}.`);
+      });
+      if (!isValidIsoDate(payload.elaborationDate)) throw new Error('La fecha de elaboración debe ser válida.');
+      if (!isValidIsoDate(payload.eventDate)) throw new Error('La fecha del evento debe ser válida.');
+      if (!isValidTime(payload.startTime) || !isValidTime(payload.endTime)) throw new Error('El horario debe usar horas válidas en formato HH:mm.');
+      const phoneDigits = String(payload.phone).replace(/\D/g, '');
+      if (phoneDigits.length < 7 || phoneDigits.length > 15) throw new Error('El teléfono debe contener entre 7 y 15 dígitos.');
+      if (payload.eventDate < payload.elaborationDate) throw new Error('La fecha del evento no puede ser anterior a la elaboración.');
+      if (eventDurationMinutes(payload.startTime, payload.endTime) !== Number(db.config.eventHours) * 60) throw new Error(`El horario debe cubrir exactamente ${db.config.eventHours} horas.`);
+      const calculatedRate = dateRate(payload.eventDate, db.config);
+      const hasTotal = payload.total !== undefined && payload.total !== null && String(payload.total).trim() !== '';
+      const hasDeposit = payload.initialDeposit !== undefined && payload.initialDeposit !== null && String(payload.initialDeposit).trim() !== '';
+      const total = roundMoney(hasTotal ? payload.total : calculatedRate);
+      const initialDeposit = roundMoney(hasDeposit ? payload.initialDeposit : 0);
+      if (!Number.isFinite(total) || total <= 0) throw new Error('El pago total debe ser mayor que cero.');
+      if (!Number.isFinite(initialDeposit) || initialDeposit < 0 || initialDeposit > total) throw new Error('El abono inicial debe estar entre cero y el pago total.');
+      if (Math.round(total * 100) !== Math.round(calculatedRate * 100) && !String(payload.overrideReason || '').trim()) throw new Error('Explica por qué el total es diferente de la tarifa automática.');
+      if (db.contracts.some(contract => contract.id !== excludingId && contract.eventDate === payload.eventDate && contract.status !== 'CANCELADO')) throw new Error('La fecha seleccionada ya está ocupada por otro contrato.');
+      return { total, initialDeposit };
+    }
+
+    function mockApi(method, rawPayload) {
       const db = getMock();
+      const payload = rawPayload || {};
       if (method === 'getBootstrapData') return db;
       if (method === 'createContract') {
-        if (db.contracts.some(c => c.eventDate === payload.eventDate && c.status !== 'CANCELADO')) throw new Error('La fecha seleccionada ya está ocupada.');
-        const number = db.config.nextContractNumber; const next = Number(number.split('.')[1]) + 1;
-        const total = Number(payload.total); const paid = Number(payload.initialDeposit);
-        const clientId = uuid(); const contract = { ...payload, id:uuid(), clientId, contractNumber:number, version:1, eventDay:dayName(payload.eventDate), status:total-paid===0?'PAGADO':'CONFIRMADO', total, initialDeposit:paid, paid, balance:total-paid, updatedAt:new Date().toISOString(), currentPdfFileId:'' };
-        delete contract.ineDataUrl; db.contracts.push(contract); db.clients.push({ id:clientId, name:payload.clientName, address:payload.address, phone:payload.phone, hasIne:Boolean(state.ineDataUrl), updatedAt:contract.updatedAt });
-        if (paid) db.payments.unshift({ id:uuid(), contractId:contract.id, contractNumber:number, date:payload.elaborationDate, amount:paid, method:payload.paymentMethod, note:'Apartado inicial', createdAt:contract.updatedAt });
-        db.config.nextContractNumber = `C.${String(next).padStart(4,'0')}`; saveMock(db); return contract;
+        const duplicate = payload.requestId && db.contracts.find(contract => contract.requestId === payload.requestId);
+        if (duplicate) {
+          if (['ERROR', 'GENERANDO'].includes(duplicate.status)) throw new Error('El intento anterior quedó incompleto y debe repararse desde Contratos.');
+          return duplicate;
+        }
+        const validation = validateMockContract(payload, db);
+        const number = db.config.nextContractNumber;
+        const next = Number(String(number).split('.')[1]) + 1;
+        const timestamp = nowLocalIso();
+        const normalizedPhone = String(payload.phone).replace(/\D/g, '');
+        let client = db.clients.find(item =>
+          String(item.name).trim().toLocaleLowerCase('es') === String(payload.clientName).trim().toLocaleLowerCase('es') &&
+          String(item.phone).replace(/\D/g, '') === normalizedPhone
+        );
+        const clientId = client?.id || uuid();
+        const contract = {
+          ...payload,
+          id: uuid(),
+          clientId,
+          contractNumber: number,
+          version: 1,
+          eventDay: dayName(payload.eventDate),
+          status: validation.total === validation.initialDeposit ? 'PAGADO' : 'CONFIRMADO',
+          total: validation.total,
+          initialDeposit: validation.initialDeposit,
+          paid: validation.initialDeposit,
+          balance: roundMoney(validation.total - validation.initialDeposit),
+          updatedAt: timestamp,
+          currentPdfFileId: ''
+        };
+        const ineSimulated = Boolean(contract.ineDataUrl);
+        delete contract.ineDataUrl;
+        delete contract.reviewConfirmed;
+        db.contracts.push(contract);
+        const clientData = { id:clientId, name:String(payload.clientName).trim(), address:String(payload.address).trim(), phone:String(payload.phone).trim(), hasIne:false, ineSimulated:Boolean(client?.ineSimulated || ineSimulated), updatedAt:timestamp };
+        if (client) Object.assign(client, clientData);
+        else db.clients.push(clientData);
+        if (validation.initialDeposit > 0) db.payments.push({ id:uuid(), requestId:`initial-${payload.requestId || uuid()}`, status:'COMPLETADO', contractId:contract.id, contractNumber:number, date:payload.elaborationDate, amount:validation.initialDeposit, method:payload.paymentMethod || 'No indicado', note:'Apartado inicial', receiptFileId:'', createdAt:timestamp });
+        db.config.nextContractNumber = `C.${String(next).padStart(4, '0')}`;
+        saveMock(db);
+        return contract;
       }
       if (method === 'addPayment') {
-        const contract = db.contracts.find(c => c.id === payload.contractId); const amount = Number(payload.amount);
-        if (!contract || amount <= 0 || amount > Number(contract.balance)) throw new Error('El abono no es válido.');
-        contract.paid += amount; contract.balance -= amount; contract.status = contract.balance === 0 ? 'PAGADO' : 'CONFIRMADO'; contract.updatedAt = new Date().toISOString();
-        db.payments.unshift({ ...payload, id:uuid(), amount, contractNumber:contract.contractNumber, createdAt:contract.updatedAt }); saveMock(db); return { contract };
+        const duplicatePayment = payload.requestId && db.payments.find(payment => payment.requestId === payload.requestId);
+        if (duplicatePayment) {
+          if (String(duplicatePayment.contractId) !== String(payload.contractId || duplicatePayment.contractId) || Math.round(Number(duplicatePayment.amount) * 100) !== Math.round(Number(payload.amount === undefined ? duplicatePayment.amount : payload.amount) * 100)) throw new Error('El identificador de esta solicitud ya pertenece a otro pago.');
+          return { contract:db.contracts.find(contract => contract.id === duplicatePayment.contractId), payment:duplicatePayment };
+        }
+        const contract = db.contracts.find(item => item.id === payload.contractId);
+        const amount = roundMoney(payload.amount);
+        if (!contract) throw new Error('No se encontró el contrato.');
+        if (!['CONFIRMADO', 'PAGADO'].includes(contract.status)) throw new Error('Este contrato no acepta pagos.');
+        if (!isValidIsoDate(payload.date)) throw new Error('La fecha del pago debe ser válida.');
+        if (!Number.isFinite(amount) || amount <= 0 || Math.round(amount * 100) > Math.round(Number(contract.balance) * 100)) throw new Error('El abono no es válido o excede el saldo restante.');
+        const timestamp = nowLocalIso();
+        contract.paid = roundMoney(Number(contract.paid) + amount);
+        contract.balance = roundMoney(Number(contract.balance) - amount);
+        contract.status = contract.balance === 0 ? 'PAGADO' : 'CONFIRMADO';
+        contract.updatedAt = timestamp;
+        const payment = { ...payload, id:uuid(), status:'COMPLETADO', amount, contractNumber:contract.contractNumber, receiptFileId:'', createdAt:timestamp };
+        db.payments.push(payment);
+        saveMock(db);
+        return { contract, payment };
       }
       if (method === 'updateContract') {
-        const index = db.contracts.findIndex(c => c.id === payload.id); if (index < 0) throw new Error('Contrato no encontrado.');
-        if (db.contracts.some(c => c.id !== payload.id && c.eventDate === payload.eventDate && c.status !== 'CANCELADO')) throw new Error('La fecha seleccionada ya está ocupada.');
-        const old = db.contracts[index]; const total = Number(payload.total); if (total < old.paid) throw new Error('El total no puede ser menor que lo pagado.');
-        db.contracts[index] = { ...old, ...payload, total, balance:total-old.paid, status:total-old.paid===0?'PAGADO':'CONFIRMADO', eventDay:dayName(payload.eventDate), version:Number(old.version)+1, updatedAt:new Date().toISOString() }; saveMock(db); return db.contracts[index];
+        const index = db.contracts.findIndex(contract => contract.id === payload.id);
+        if (index < 0) throw new Error('Contrato no encontrado.');
+        const previous = db.contracts[index];
+        if (Number(payload.expectedVersion) !== Number(previous.version)) throw new Error('Este contrato cambió desde que lo abriste. Actualiza los datos e inténtalo de nuevo.');
+        if (previous.status === 'CANCELADO') throw new Error('Un contrato cancelado no puede modificarse.');
+        const validation = validateMockContract({ ...previous, ...payload }, db, payload.id);
+        if (Math.round(validation.total * 100) < Math.round(Number(previous.paid) * 100)) throw new Error('El total no puede ser menor que lo pagado.');
+        const updatedAt = nowLocalIso();
+        const updated = { ...previous, ...payload, total:validation.total, balance:roundMoney(validation.total - Number(previous.paid)), status:Math.round(validation.total * 100) === Math.round(Number(previous.paid) * 100) ? 'PAGADO' : 'CONFIRMADO', eventDay:dayName(payload.eventDate), version:Number(previous.version) + 1, updatedAt };
+        delete updated.expectedVersion;
+        db.contracts[index] = updated;
+        const client = db.clients.find(item => item.id === previous.clientId);
+        if (client) Object.assign(client, { name:updated.clientName, address:updated.address, phone:updated.phone, updatedAt });
+        saveMock(db);
+        return updated;
       }
-      if (method === 'cancelContract') { const contract = db.contracts.find(c => c.id === payload.id); contract.status='CANCELADO'; contract.cancelReason=payload.reason; saveMock(db); return contract; }
+      if (method === 'cancelContract') {
+        const contract = db.contracts.find(item => item.id === payload.id);
+        if (!contract) throw new Error('Contrato no encontrado.');
+        if (!String(payload.reason || '').trim()) throw new Error('Indica el motivo de la cancelación.');
+        if (payload.expectedVersion !== undefined && Number(payload.expectedVersion) !== Number(contract.version)) throw new Error('El contrato cambió en otra sesión. Actualiza el panel antes de cancelar.');
+        contract.status = 'CANCELADO';
+        contract.cancelReason = String(payload.reason).trim();
+        contract.updatedAt = nowLocalIso();
+        saveMock(db);
+        return contract;
+      }
+      if (method === 'installAutomations') {
+        db.automation = { ...(db.automation || {}), installed:true, status:'ACTIVA', triggerCount:1, installedAt:nowLocalIso(), lastSummary:'Automatizaciones ficticias instaladas en el modo demo.' };
+        saveMock(db);
+        return db.automation;
+      }
+      if (method === 'runAutomationNow') {
+        const paymentDue = db.contracts.filter(contract => {
+          if (contract.status !== 'CONFIRMADO' || Number(contract.balance) <= 0 || !isValidIsoDate(contract.eventDate)) return false;
+          const days = Math.round((new Date(`${contract.eventDate}T12:00:00`) - new Date(`${today()}T12:00:00`)) / 86400000);
+          return days >= 0 && days <= 7;
+        }).length;
+        const summary = { processed:db.contracts.filter(contract => ['CONFIRMADO', 'PAGADO', 'CANCELADO'].includes(contract.status)).length, reconciled:db.contracts.filter(contract => ['CONFIRMADO', 'PAGADO'].includes(contract.status)).length, cancelled:db.contracts.filter(contract => contract.status === 'CANCELADO').length, paymentDue, errors:0 };
+        db.automation = { ...(db.automation || {}), installed:Boolean(db.automation?.installed), status:db.automation?.installed ? 'ACTIVA' : 'PENDIENTE', lastRunAt:nowLocalIso(), lastSummary:summary };
+        saveMock(db);
+        return summary;
+      }
       throw new Error(`Operación no disponible en demostración: ${method}`);
     }
 
-    function dayName(dateText) { if (!dateText) return '—'; return ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][new Date(`${dateText}T12:00:00`).getDay()]; }
-    function rateFor(dateText) { const day = new Date(`${dateText}T12:00:00`).getDay(); return (day===0||day===6) ? state.data.config.weekendRate : state.data.config.weekdayRate; }
-    function dateParts(dateText) { const d = new Date(`${dateText}T12:00:00`); return { day:String(d.getDate()).padStart(2,'0'), month:d.toLocaleDateString('es-MX',{month:'short'}).replace('.','') }; }
-    function activeContracts() { return state.data.contracts.filter(c => c.status !== 'CANCELADO'); }
+    function normalizeBootstrap(data) {
+      const normalized = data && typeof data === 'object' ? data : {};
+      normalized.user = normalized.user || { email:'—', role:'CONSULTA' };
+      normalized.config = normalized.config || { weekdayRate:0, weekendRate:0, eventHours:5, nextContractNumber:'—' };
+      normalized.contracts = Array.isArray(normalized.contracts) ? normalized.contracts : [];
+      normalized.clients = Array.isArray(normalized.clients) ? normalized.clients : [];
+      normalized.payments = Array.isArray(normalized.payments) ? normalized.payments : [];
+      normalized.automation = normalized.automation || { installed:false, status:'PENDIENTE', triggerCount:0, lastRunAt:'', lastSummary:'Sin información disponible.' };
+      return normalized;
+    }
+
+    function rateFor(dateText) { return dateRate(dateText, state.data.config); }
+
+    function dateParts(dateText) {
+      const date = new Date(`${dateText}T12:00:00`);
+      if (Number.isNaN(date.getTime())) return { day:'—', month:'—' };
+      return { day:String(date.getDate()).padStart(2, '0'), month:date.toLocaleDateString('es-MX', { month:'short' }).replace('.', '') };
+    }
+
+    function statusClass(status) { return String(status || '').toUpperCase().replace(/[^A-Z0-9_-]/g, ''); }
+    function operationalContracts() { return state.data.contracts.filter(contract => !NON_OPERATIONAL_STATUSES.has(String(contract.status).toUpperCase())); }
+    function compareEventsAscending(a, b) { return `${a.eventDate || ''} ${a.startTime || ''}`.localeCompare(`${b.eventDate || ''} ${b.startTime || ''}`); }
+    function compareEventsDescending(a, b) { return compareEventsAscending(b, a) || String(b.contractNumber || '').localeCompare(String(a.contractNumber || '')); }
+    function comparePaymentsDescending(a, b) { return `${b.createdAt || b.date || ''} ${b.id || ''}`.localeCompare(`${a.createdAt || a.date || ''} ${a.id || ''}`); }
+
+    function driveFileUrl(fileId) {
+      const id = String(fileId || '').trim();
+      return id && /^[A-Za-z0-9_-]+$/.test(id) ? `https://drive.google.com/open?id=${encodeURIComponent(id)}` : '';
+    }
+
+    function driveFileLink(fileId, label) {
+      const url = driveFileUrl(fileId);
+      return url ? `<a class="btn btn-ghost btn-small" href="${url}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>` : '';
+    }
+
+    function updateLastUpdated() {
+      const time = new Intl.DateTimeFormat('es-MX', { hour:'2-digit', minute:'2-digit', second:'2-digit', timeZone:'America/Hermosillo' }).format(new Date());
+      document.getElementById('lastUpdated').textContent = `Última actualización\n${time}`;
+    }
+
+    async function loadLatest({ message = '', automatic = false, showBusy = false } = {}) {
+      if (state.refreshing) return false;
+      if (automatic && (Object.values(state.formDirty).some(Boolean) || document.getElementById('contractDialog').open)) return false;
+      state.refreshing = true;
+      const refreshButton = document.getElementById('refreshButton');
+      refreshButton.disabled = true;
+      if (showBusy) showLoading('Actualizando el panel…');
+      try {
+        state.data = normalizeBootstrap(await callServer('getBootstrapData'));
+        renderAll();
+        updateLastUpdated();
+        if (message) toast(message);
+        return true;
+      } catch (error) {
+        document.getElementById('lastUpdated').textContent = 'No se pudo actualizar';
+        if (!automatic) toast(error.message || 'No se pudo actualizar el panel.', true);
+        return false;
+      } finally {
+        state.refreshing = false;
+        refreshButton.disabled = false;
+        if (showBusy) hideLoading();
+      }
+    }
 
     async function bootstrap() {
       showLoading('Preparando el panel…');
-      try { state.data = await callServer('getBootstrapData'); renderAll(); }
-      catch (error) { toast(error.message, true); document.getElementById('upcomingList').innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`; }
-      finally { hideLoading(); }
+      try {
+        await loadLatest();
+        switchView('dashboard', false);
+      } finally {
+        hideLoading();
+      }
     }
 
     function renderAll() {
       const { user } = state.data;
-      document.getElementById('userEmail').textContent = user.email;
-      document.getElementById('userRole').textContent = user.role === 'PROPIETARIO' ? 'Propietario' : 'Solo consulta';
-      document.getElementById('avatar').textContent = user.role === 'PROPIETARIO' ? 'P' : 'C';
+      const isOwner = user.role === 'PROPIETARIO';
+      document.getElementById('userEmail').textContent = user.email || '—';
+      document.getElementById('userRole').textContent = isOwner ? 'Propietario' : 'Solo consulta';
+      document.getElementById('avatar').textContent = isOwner ? 'P' : 'C';
       document.getElementById('demoBanner').classList.toggle('show', state.isDemo);
-      document.querySelectorAll('.owner-only').forEach(el => el.style.display = user.role === 'PROPIETARIO' ? '' : 'none');
-      document.getElementById('nextNumber').textContent = `SIGUIENTE ${state.data.config.nextContractNumber}`;
-      renderDashboard(); renderAgenda(); renderContracts(); renderPayments(); renderClients();
+      document.querySelectorAll('.owner-only').forEach(element => element.classList.toggle('owner-visible', isOwner));
+      document.getElementById('nextNumber').textContent = `SIGUIENTE ${state.data.config.nextContractNumber || '—'}`;
+      const activeOwnerView = document.querySelector('.view.active.owner-only');
+      if (!isOwner && activeOwnerView) switchView('dashboard', false);
+      renderDashboard();
+      renderAgenda();
+      renderContracts();
+      renderPayments();
+      renderClients();
+      renderAutomations();
     }
 
     function renderDashboard() {
-      const contracts = activeContracts(); const future = contracts.filter(c => c.eventDate >= today());
-      const paid = contracts.reduce((sum,c)=>sum+Number(c.paid),0); const balance = contracts.reduce((sum,c)=>sum+Number(c.balance),0); const totals = contracts.reduce((sum,c)=>sum+Number(c.total),0);
-      document.getElementById('kpiEvents').textContent = future.length; document.getElementById('kpiContracts').textContent = contracts.length; document.getElementById('kpiPaid').textContent = money(paid); document.getElementById('kpiBalance').textContent = money(balance);
-      document.getElementById('upcomingList').innerHTML = future.slice(0,5).map(c => { const d=dateParts(c.eventDate); return `<div class="event-item"><div class="date-box"><strong>${d.day}</strong><span>${d.month}</span></div><div><h5>${escapeHtml(c.clientName)}</h5><p>${escapeHtml(c.eventType)} · ${escapeHtml(c.startTime)}–${escapeHtml(c.endTime)}</p></div><span class="status ${c.status}">${c.status}</span></div>`; }).join('') || '<div class="empty">No hay eventos próximos.</div>';
-      document.getElementById('paymentSummary').innerHTML = `<div class="money-row"><span>Contratado</span><strong>${money(totals)}</strong></div><div class="money-row"><span>Pagado</span><strong style="color:var(--green)">${money(paid)}</strong></div><div class="money-row"><span>Pendiente</span><strong style="color:var(--red)">${money(balance)}</strong></div><div style="height:9px;background:#f1f1ef;border-radius:99px;overflow:hidden;margin-top:18px"><div style="height:100%;width:${totals ? Math.round(paid/totals*100) : 0}%;background:linear-gradient(90deg,var(--orange),var(--green))"></div></div>`;
+      const contracts = operationalContracts();
+      const future = contracts.filter(contract => contract.eventDate >= today()).sort(compareEventsAscending);
+      const paid = contracts.reduce((sum, contract) => sum + Number(contract.paid || 0), 0);
+      const balance = contracts.reduce((sum, contract) => sum + Number(contract.balance || 0), 0);
+      const totals = contracts.reduce((sum, contract) => sum + Number(contract.total || 0), 0);
+      document.getElementById('kpiEvents').textContent = future.length;
+      document.getElementById('kpiContracts').textContent = contracts.length;
+      document.getElementById('kpiPaid').textContent = money(paid);
+      document.getElementById('kpiBalance').textContent = money(balance);
+      document.getElementById('upcomingList').innerHTML = future.slice(0, 5).map(contract => {
+        const date = dateParts(contract.eventDate);
+        const status = String(contract.status || '');
+        return `<div class="event-item"><div class="date-box"><strong>${date.day}</strong><span>${date.month}</span></div><div><h5>${escapeHtml(contract.clientName)}</h5><p>${escapeHtml(contract.eventType)} · ${escapeHtml(contract.startTime)}–${escapeHtml(contract.endTime)}</p></div><span class="status ${statusClass(status)}">${escapeHtml(status)}</span></div>`;
+      }).join('') || '<div class="empty">No hay eventos próximos.</div>';
+      const percentage = totals > 0 ? Math.max(0, Math.min(100, Math.round(paid / totals * 100))) : 0;
+      document.getElementById('paymentSummary').innerHTML = `<div class="money-row"><span>Contratado</span><strong>${money(totals)}</strong></div><div class="money-row"><span>Pagado</span><strong style="color:var(--green)">${money(paid)}</strong></div><div class="money-row"><span>Pendiente</span><strong style="color:var(--red)">${money(balance)}</strong></div><div style="height:9px;background:#f1f1ef;border-radius:99px;overflow:hidden;margin-top:18px" role="progressbar" aria-label="Porcentaje cobrado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percentage}"><div style="height:100%;width:${percentage}%;background:linear-gradient(90deg,var(--orange),var(--green))"></div></div>`;
     }
 
     function renderAgenda() {
-      const sorted = [...state.data.contracts].sort((a,b)=>a.eventDate.localeCompare(b.eventDate));
-      document.getElementById('agendaGrid').innerHTML = sorted.map(c => `<article class="card agenda-card ${c.status==='CANCELADO'?'cancelled':''}"><div class="agenda-date">${escapeHtml(c.eventDay)} · ${escapeHtml(c.eventDate)}</div><h4>${escapeHtml(c.contractNumber)} — ${escapeHtml(c.clientName)}</h4><p><strong>${escapeHtml(c.startTime)} a ${escapeHtml(c.endTime)}</strong> · ${escapeHtml(c.eventType)}</p><p>Pagado ${money(c.paid)} · Saldo ${money(c.balance)}</p><span class="status ${c.status}">${c.status}</span></article>`).join('') || '<div class="empty">No hay eventos.</div>';
+      const sorted = [...state.data.contracts].sort(compareEventsAscending);
+      document.getElementById('agendaGrid').innerHTML = sorted.map(contract => {
+        const status = String(contract.status || '');
+        return `<article class="card agenda-card ${status === 'CANCELADO' ? 'cancelled' : ''}"><div class="agenda-date">${escapeHtml(contract.eventDay || dayName(contract.eventDate))} · ${escapeHtml(contract.eventDate)}</div><h4>${escapeHtml(contract.contractNumber)} — ${escapeHtml(contract.clientName)}</h4><p><strong>${escapeHtml(contract.startTime)} a ${escapeHtml(contract.endTime)}</strong> · ${escapeHtml(contract.eventType)}</p><p>Pagado ${money(contract.paid)} · Saldo ${money(contract.balance)}</p><span class="status ${statusClass(status)}">${escapeHtml(status)}</span></article>`;
+      }).join('') || '<div class="empty">No hay eventos.</div>';
     }
 
     function renderContracts() {
-      const query = document.getElementById('contractSearch').value.toLowerCase(); const status = document.getElementById('contractStatus').value;
-      const rows = state.data.contracts.filter(c => (!query || `${c.contractNumber} ${c.clientName}`.toLowerCase().includes(query)) && (!status || c.status===status));
-      document.getElementById('contractsBody').innerHTML = rows.map(c => `<tr><td><strong>${escapeHtml(c.contractNumber)}</strong><br><small>Versión ${c.version}</small></td><td>${escapeHtml(c.eventDate)}<br><small>${escapeHtml(c.startTime)}–${escapeHtml(c.endTime)}</small></td><td>${escapeHtml(c.clientName)}</td><td>${money(c.total)}</td><td>${money(c.paid)}</td><td><strong>${money(c.balance)}</strong></td><td><span class="status ${c.status}">${c.status}</span></td><td><button class="btn btn-ghost btn-small" onclick="openContract('${c.id}')">Ver</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">No se encontraron contratos.</td></tr>';
+      const query = document.getElementById('contractSearch').value.trim().toLowerCase();
+      const statusFilter = document.getElementById('contractStatus').value;
+      const rows = [...state.data.contracts]
+        .filter(contract => (!query || `${contract.contractNumber} ${contract.clientName}`.toLowerCase().includes(query)) && (!statusFilter || contract.status === statusFilter))
+        .sort(compareEventsDescending);
+      document.getElementById('contractsBody').innerHTML = rows.map(contract => {
+        const status = String(contract.status || '');
+        const pdfLink = driveFileLink(contract.currentPdfFileId, 'PDF');
+        return `<tr><td><strong>${escapeHtml(contract.contractNumber)}</strong><br><small>Versión ${escapeHtml(contract.version)}</small></td><td>${escapeHtml(contract.eventDate)}<br><small>${escapeHtml(contract.startTime)}–${escapeHtml(contract.endTime)}</small></td><td>${escapeHtml(contract.clientName)}</td><td>${money(contract.total)}</td><td>${money(contract.paid)}</td><td><strong>${money(contract.balance)}</strong></td><td><span class="status ${statusClass(status)}">${escapeHtml(status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-small" type="button" data-contract-id="${escapeHtml(contract.id)}">Ver</button>${pdfLink}</div></td></tr>`;
+      }).join('') || '<tr><td colspan="8" class="empty">No se encontraron contratos.</td></tr>';
     }
 
     function renderPayments() {
-      const options = activeContracts().filter(c => Number(c.balance)>0).map(c => `<option value="${c.id}">${escapeHtml(c.contractNumber)} · ${escapeHtml(c.clientName)} · saldo ${money(c.balance)}</option>`).join('');
-      document.getElementById('paymentContract').innerHTML = options || '<option value="">No hay saldos pendientes</option>';
-      document.getElementById('paymentsList').innerHTML = state.data.payments.slice(0,12).map(p => `<div class="money-row"><div><strong>${escapeHtml(p.contractNumber)}</strong><br><small>${escapeHtml(p.date)} · ${escapeHtml(p.method || '')}</small></div><strong style="color:var(--green)">${money(p.amount)}</strong></div>`).join('') || '<div class="empty">No hay pagos registrados.</div>';
+      const select = document.getElementById('paymentContract');
+      const previousSelection = select.value;
+      const available = operationalContracts().filter(contract => Number(contract.balance) > 0).sort(compareEventsAscending);
+      select.innerHTML = available.map(contract => `<option value="${escapeHtml(contract.id)}">${escapeHtml(contract.contractNumber)} · ${escapeHtml(contract.clientName)} · saldo ${money(contract.balance)}</option>`).join('') || '<option value="">No hay saldos pendientes</option>';
+      if (available.some(contract => String(contract.id) === previousSelection)) select.value = previousSelection;
+      const payments = [...state.data.payments].sort(comparePaymentsDescending).slice(0, 12);
+      document.getElementById('paymentsList').innerHTML = payments.map(payment => {
+        const paymentStatus = String(payment.status || 'COMPLETADO').toUpperCase();
+        const completed = paymentStatus === 'COMPLETADO';
+        const receiptLink = completed ? driveFileLink(payment.receiptFileId, 'Recibo') : '';
+        const statusBadge = `<span class="status ${statusClass(paymentStatus)}">${escapeHtml(paymentStatus)}</span>`;
+        return `<div class="money-row"><div><strong>${escapeHtml(payment.contractNumber)}</strong> ${statusBadge}<br><small>${escapeHtml(payment.date)} · ${escapeHtml(payment.method || '')}</small>${receiptLink ? `<div style="margin-top:6px">${receiptLink}</div>` : ''}</div><strong style="color:${completed ? 'var(--green)' : 'var(--red)'}">${money(payment.amount)}</strong></div>`;
+      }).join('') || '<div class="empty">No hay pagos registrados.</div>';
     }
 
     function renderClients() {
-      const query = document.getElementById('clientSearch').value.toLowerCase(); const clients = state.data.clients.filter(c => !query || `${c.name} ${c.phone}`.toLowerCase().includes(query));
-      document.getElementById('clientsBody').innerHTML = clients.map(c => `<tr><td><strong>${escapeHtml(c.name)}</strong></td><td>${escapeHtml(c.address)}</td><td>${escapeHtml(c.phone)}</td><td>${c.hasIne ? '<span class="status CONFIRMADO">RESGUARDADA</span>' : '<span style="color:var(--muted)">No guardada</span>'}</td><td>${escapeHtml(String(c.updatedAt||'').slice(0,10))}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">No se encontraron clientes.</td></tr>';
+      const query = document.getElementById('clientSearch').value.trim().toLowerCase();
+      const clients = [...state.data.clients]
+        .filter(client => !query || `${client.name} ${client.phone}`.toLowerCase().includes(query))
+        .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es'));
+      document.getElementById('clientsBody').innerHTML = clients.map(client => {
+        let ineStatus = '<span style="color:var(--muted)">No guardada</span>';
+        if (state.isDemo) ineStatus = client.ineSimulated ? '<span class="status PENDIENTE">SIMULADA · NO PERSISTIDA</span>' : '<span style="color:var(--muted)">No persistida</span>';
+        else if (client.hasIne) ineStatus = '<span class="status CONFIRMADO">RESGUARDADA</span>';
+        return `<tr><td><strong>${escapeHtml(client.name)}</strong></td><td>${escapeHtml(client.address)}</td><td>${escapeHtml(client.phone)}</td><td>${ineStatus}</td><td>${escapeHtml(String(client.updatedAt || '').slice(0, 10))}</td></tr>`;
+      }).join('') || '<tr><td colspan="5" class="empty">No se encontraron clientes.</td></tr>';
     }
 
-    function switchView(name) { document.querySelectorAll('.view').forEach(v=>v.classList.remove('active')); document.getElementById(`view-${name}`).classList.add('active'); document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===name)); document.getElementById('viewTitle').textContent=viewTitles[name]; window.scrollTo({top:0,behavior:'smooth'}); }
+    function automationText(value) {
+      if (value === null || value === undefined || value === '') return '—';
+      if (typeof value === 'string' || typeof value === 'number') return String(value);
+      if (Array.isArray(value)) return value.join(', ') || '—';
+      try { return JSON.stringify(value); } catch (ignored) { return String(value); }
+    }
+
+    function renderAutomations() {
+      const automation = state.data.automation || {};
+      const installed = Boolean(automation.installed ?? automation.isInstalled ?? Number(automation.triggerCount) > 0);
+      const status = String(automation.status || (installed ? 'INSTALADA' : 'PENDIENTE')).toUpperCase();
+      const triggerCount = automation.triggerCount ?? (Array.isArray(automation.triggers) ? automation.triggers.length : automation.triggers) ?? 0;
+      const lastRun = state.automationLastRunAt || automation.lastRunAt || automation.lastExecutionAt || 'Sin ejecuciones';
+      const summary = state.automationLastSummary || automation.lastSummary || automation.summary || automation.message || 'Sin resultados todavía.';
+      document.getElementById('automationSummary').innerHTML = `<div class="card automation-metric"><span>Estado</span><strong><span class="status ${statusClass(status)}">${escapeHtml(status)}</span></strong></div><div class="card automation-metric"><span>Activadores</span><strong>${escapeHtml(triggerCount)}</strong></div><div class="card automation-metric"><span>Última ejecución</span><strong>${escapeHtml(lastRun)}</strong></div>`;
+      const handler = automation.handler ? `<div class="money-row"><span>Proceso</span><strong>${escapeHtml(automation.handler)}</strong></div>` : '';
+      const schedule = automation.hour !== undefined ? `<div class="money-row"><span>Horario diario</span><strong>${escapeHtml(`${automation.hour}:00 · ${automation.timeZone || state.data.config.timeZone || ''}`)}</strong></div>` : '';
+      const triggers = Array.isArray(automation.triggers) && automation.triggers.length ? `<div class="money-row"><span>Procesos</span><strong>${escapeHtml(automation.triggers.map(item => typeof item === 'string' ? item : item.handler || item.name || automationText(item)).join(', '))}</strong></div>` : '';
+      const error = automation.error ? `<div class="warning" style="margin-bottom:12px">${escapeHtml(automation.error)}</div>` : '';
+      document.getElementById('automationDetail').innerHTML = `${error}<div class="money-row"><span>Instalación</span><strong>${installed ? 'Lista' : 'Pendiente'}</strong></div>${handler}${schedule}${triggers}<div class="money-row"><span>Último resultado</span><strong>${escapeHtml(automationText(summary))}</strong></div>`;
+    }
+
+    function switchView(name, smooth = true) {
+      const target = document.getElementById(`view-${name}`);
+      if (!target || (target.classList.contains('owner-only') && !target.classList.contains('owner-visible'))) return;
+      document.querySelectorAll('.view').forEach(view => {
+        const active = view === target;
+        view.classList.toggle('active', active);
+        view.setAttribute('aria-hidden', String(!active));
+      });
+      document.querySelectorAll('.nav-btn').forEach(button => {
+        const active = button.dataset.view === name;
+        button.classList.toggle('active', active);
+        if (active) button.setAttribute('aria-current', 'page');
+        else button.removeAttribute('aria-current');
+      });
+      document.getElementById('viewTitle').textContent = viewTitles[name] || 'Plaza Represo';
+      window.scrollTo({ top:0, behavior:smooth ? 'smooth' : 'auto' });
+    }
+
+    function resetPaymentPreview() {
+      document.getElementById('previewDay').textContent = '—';
+      document.getElementById('previewRate').textContent = money(0);
+      document.getElementById('previewDeposit').textContent = money(0);
+      document.getElementById('previewBalance').textContent = money(0);
+    }
 
     function updatePaymentPreview() {
-      const form = document.getElementById('contractForm'); const date=form.eventDate.value; if (!date) return;
-      const rate=rateFor(date); if (!form.total.dataset.edited) form.total.value=rate; const total=Number(form.total.value||0); const deposit=Number(form.initialDeposit.value||0);
-      document.getElementById('previewDay').textContent=dayName(date); document.getElementById('previewRate').textContent=money(rate); document.getElementById('previewDeposit').textContent=money(deposit); document.getElementById('previewBalance').textContent=money(Math.max(0,total-deposit));
+      const form = document.getElementById('contractForm');
+      const date = form.elements.namedItem('eventDate').value;
+      if (!date || !state.data) {
+        resetPaymentPreview();
+        return;
+      }
+      const totalInput = form.elements.namedItem('total');
+      const rate = rateFor(date);
+      if (!totalInput.dataset.edited) totalInput.value = rate;
+      const total = Number(totalInput.value || 0);
+      const deposit = Number(form.elements.namedItem('initialDeposit').value || 0);
+      document.getElementById('previewDay').textContent = dayName(date);
+      document.getElementById('previewRate').textContent = money(rate);
+      document.getElementById('previewDeposit').textContent = money(deposit);
+      document.getElementById('previewBalance').textContent = money(Math.max(0, roundMoney(total - deposit)));
+    }
+
+    function validateImageFile(file) {
+      if (!file) throw new Error('Selecciona una imagen ficticia.');
+      if (!ACCEPTED_IMAGE_TYPES.has(file.type)) throw new Error('La identificación ficticia debe ser JPG, PNG o WebP.');
+      if (file.size > MAX_IMAGE_BYTES) throw new Error('La imagen ficticia no puede exceder 5 MB.');
+    }
+
+    function readFileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error('No se pudo leer la imagen seleccionada.'));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function decodeImage(file) {
+      if (typeof window.createImageBitmap === 'function') {
+        try {
+          const bitmap = await window.createImageBitmap(file);
+          return { source:bitmap, width:bitmap.width, height:bitmap.height, close:() => bitmap.close?.() };
+        } catch (ignored) { /* Algunos navegadores requieren la alternativa con Image. */ }
+      }
+      const sourceUrl = await readFileAsDataUrl(file);
+      const image = await new Promise((resolve, reject) => {
+        const element = new Image();
+        element.onload = () => resolve(element);
+        element.onerror = () => reject(new Error('El archivo no contiene una imagen válida.'));
+        element.src = sourceUrl;
+      });
+      return { source:image, width:image.naturalWidth, height:image.naturalHeight, close:() => {} };
     }
 
     async function fileToCompressedDataUrl(file) {
-      const image = await createImageBitmap(file); const max=1800; const scale=Math.min(1,max/Math.max(image.width,image.height)); const canvas=document.createElement('canvas'); canvas.width=Math.round(image.width*scale); canvas.height=Math.round(image.height*scale); canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height); return canvas.toDataURL('image/jpeg',.82);
+      validateImageFile(file);
+      const image = await decodeImage(file);
+      try {
+        if (!image.width || !image.height) throw new Error('La imagen no tiene dimensiones válidas.');
+        const maximumSide = 1800;
+        const scale = Math.min(1, maximumSide / Math.max(image.width, image.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('El navegador no pudo preparar la imagen para OCR.');
+        context.drawImage(image.source, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        const estimatedBytes = Math.ceil((dataUrl.length - dataUrl.indexOf(',') - 1) * 3 / 4);
+        if (estimatedBytes > MAX_IMAGE_BYTES) throw new Error('La imagen procesada excede 5 MB. Usa una imagen más pequeña.');
+        return dataUrl;
+      } finally {
+        image.close();
+      }
+    }
+
+    function setInePreview(dataUrl = '') {
+      const preview = document.getElementById('inePreview');
+      preview.replaceChildren();
+      if (dataUrl) {
+        const image = document.createElement('img');
+        image.src = dataUrl;
+        image.alt = 'Vista previa de identificación ficticia';
+        preview.appendChild(image);
+      } else {
+        const text = document.createElement('span');
+        text.textContent = 'Vista previa de la INE';
+        preview.appendChild(text);
+      }
+    }
+
+    function clearOcrState() {
+      document.getElementById('ocrStatus').textContent = '';
+    }
+
+    function normalizeOcrLabel(value) {
+      return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/0/g, 'O').replace(/[|!1]/g, 'I').replace(/\s+/g, ' ').trim();
+    }
+
+    function extractLabeledLines(lines, labelPattern, stopPattern, maximumLines) {
+      const normalized = lines.map(normalizeOcrLabel);
+      const labelIndex = normalized.findIndex(line => labelPattern.test(line));
+      if (labelIndex < 0) return '';
+      const values = [];
+      const labelMatch = normalized[labelIndex].match(labelPattern);
+      if (labelMatch) {
+        let inlineValue = lines[labelIndex].slice(labelMatch.index + labelMatch[0].length).replace(/^\s*[:.;-]?\s*/, '').trim();
+        const inlineStop = normalizeOcrLabel(inlineValue).match(stopPattern);
+        if (inlineStop && inlineStop.index > 0) inlineValue = inlineValue.slice(0, inlineStop.index).trim();
+        else if (inlineStop?.index === 0) inlineValue = '';
+        if (inlineValue) values.push(inlineValue);
+      }
+      for (let index = labelIndex + 1; index < lines.length && values.length < maximumLines; index += 1) {
+        if (stopPattern.test(normalized[index])) break;
+        if (lines[index].trim()) values.push(lines[index].trim());
+      }
+      return values.join(' ');
     }
 
     function extractIneFields(text) {
-      const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean); const upper=lines.map(l=>l.toUpperCase()); let name='',address='';
-      const nameIndex=upper.findIndex(l=>l.includes('NOMBRE')); if(nameIndex>=0) name=lines.slice(nameIndex+1,nameIndex+4).filter((_,i)=>!upper[nameIndex+1+i]?.match(/DOMICILIO|SEXO|CLAVE|CURP|FECHA/)).join(' ');
-      const addressIndex=upper.findIndex(l=>l.includes('DOMICILIO')); if(addressIndex>=0) address=lines.slice(addressIndex+1,addressIndex+4).filter((_,i)=>!upper[addressIndex+1+i]?.match(/CLAVE|CURP|FECHA|SEXO|ELECTOR/)).join(' ');
-      return { name:name.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ .'-]/g,' ').replace(/\s+/g,' ').trim(), address:address.replace(/\s+/g,' ').trim() };
+      const lines = String(text || '').split(/\r?\n/).map(line => line.replace(/\s+/g, ' ').trim()).filter(Boolean);
+      const nameLabel = /N[O0]MBRE(?:S)?\b/;
+      const addressLabel = /D[O0]MIC[I1!|]L[I1!|][O0]\b/;
+      const nameStops = /D[O0]MIC|SEXO|CLAVE|CURP|FECHA|NACIMIENTO|ELECTOR|VIGENCIA|SECCI[O0]N|ESTADO|MUNICIPIO|LOCALIDAD|EMISI[O0]N/;
+      const addressStops = /CLAVE|CURP|FECHA|NACIMIENTO|SEXO|ELECTOR|VIGENCIA|SECCI[O0]N|ESTADO|MUNICIPIO|LOCALIDAD|EMISI[O0]N|A[NÑ]O DE REGISTRO/;
+      let name = extractLabeledLines(lines, nameLabel, nameStops, 3);
+      let address = extractLabeledLines(lines, addressLabel, addressStops, 4);
+      const flatText = lines.join(' ');
+      if (!name) {
+        const match = flatText.match(/N[O0]MBRE(?:S)?\s*[:.;-]?\s*(.+?)(?=\s+D[O0]MIC[I1!|]L[I1!|][O0]\b|\s+(?:SEXO|CLAVE|CURP|FECHA|ELECTOR)\b|$)/i);
+        name = match?.[1] || '';
+      }
+      if (!address) {
+        const match = flatText.match(/D[O0]MIC[I1!|]L[I1!|][O0]\s*[:.;-]?\s*(.+?)(?=\s+(?:CLAVE|CURP|FECHA|SEXO|ELECTOR|VIGENCIA|SECCI[O0]N)\b|$)/i);
+        address = match?.[1] || '';
+      }
+      name = name.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ .'-]/g, ' ').replace(/\s+/g, ' ').replace(/^[-:;.\s]+|[-:;.\s]+$/g, '').trim();
+      address = address.replace(/[<>]/g, ' ').replace(/\s+/g, ' ').replace(/^[-:;.\s]+|[-:;.\s]+$/g, '').trim();
+      return { name, address };
     }
 
     function openContract(id) {
-      const contract=state.data.contracts.find(c=>c.id===id); state.selectedContract=contract; document.getElementById('dialogTitle').textContent=`${contract.contractNumber} · ${contract.status}`;
-      const editable=state.data.user.role==='PROPIETARIO' && contract.status!=='CANCELADO';
-      const fields=[['clientName','Nombre',contract.clientName,'text'],['phone','Teléfono',contract.phone,'text'],['address','Domicilio',contract.address,'text'],['elaborationDate','Elaboración',contract.elaborationDate,'date'],['eventDate','Fecha del evento',contract.eventDate,'date'],['eventType','Tipo de evento',contract.eventType,'text'],['startTime','Inicio',contract.startTime,'time'],['endTime','Término',contract.endTime,'time'],['total','Pago total',contract.total,'number'],['overrideReason','Motivo de tarifa especial',contract.overrideReason||'','text']];
-      document.getElementById('dialogFields').innerHTML=`<input type="hidden" name="id" value="${contract.id}">`+fields.map(([name,label,value,type],i)=>`<div class="field ${name==='address'||name==='overrideReason'?'full':(i<2?'half':'')} "><label>${label}</label><input name="${name}" type="${type}" value="${escapeHtml(value)}" ${editable?'':'disabled'}></div>`).join('')+`<div class="field full warning">Pagado: <strong>${money(contract.paid)}</strong> · Saldo: <strong>${money(contract.balance)}</strong> · Versión actual: <strong>${contract.version}</strong></div>`;
-      document.getElementById('cancelContractButton').style.display=editable?'':'none'; document.querySelector('#editForm button[type="submit"]').style.display=editable?'':'none'; document.getElementById('contractDialog').showModal();
+      const contract = state.data.contracts.find(item => String(item.id) === String(id));
+      if (!contract) return toast('No se encontró el contrato seleccionado.', true);
+      state.selectedContract = contract;
+      state.formDirty.edit = false;
+      document.getElementById('dialogTitle').textContent = `${contract.contractNumber} · ${contract.status}`;
+      const editable = state.data.user.role === 'PROPIETARIO' && contract.status !== 'CANCELADO';
+      const fields = [
+        ['clientName', 'Nombre', contract.clientName, 'text'], ['phone', 'Teléfono', contract.phone, 'text'], ['address', 'Domicilio', contract.address, 'text'],
+        ['elaborationDate', 'Elaboración', contract.elaborationDate, 'date'], ['eventDate', 'Fecha del evento', contract.eventDate, 'date'], ['eventType', 'Tipo de evento', contract.eventType, 'text'],
+        ['startTime', 'Inicio', contract.startTime, 'time'], ['endTime', 'Término', contract.endTime, 'time'], ['total', 'Pago total', contract.total, 'number'], ['overrideReason', 'Motivo de tarifa especial', contract.overrideReason || '', 'text']
+      ];
+      const pdfLink = driveFileLink(contract.currentPdfFileId, 'Abrir PDF vigente');
+      document.getElementById('dialogFields').innerHTML = `<input type="hidden" name="id" value="${escapeHtml(contract.id)}"><input type="hidden" name="expectedVersion" value="${escapeHtml(contract.version)}">` + fields.map(([name, label, value, type], index) => {
+        const inputId = `edit-${name}`;
+        const fieldClass = name === 'address' || name === 'overrideReason' ? 'full' : (index < 2 ? 'half' : '');
+        const step = type === 'number' ? ' step="0.01" min="1"' : '';
+        const required = editable && name !== 'overrideReason' ? 'required' : '';
+        return `<div class="field ${fieldClass}"><label for="${inputId}">${escapeHtml(label)}</label><input id="${inputId}" name="${name}" type="${type}" value="${escapeHtml(value)}"${step} ${editable ? required : 'disabled'}></div>`;
+      }).join('') + `<div class="field full warning">Pagado: <strong>${money(contract.paid)}</strong> · Saldo: <strong>${money(contract.balance)}</strong> · Versión actual: <strong>${escapeHtml(contract.version)}</strong>${pdfLink ? `<div style="margin-top:10px">${pdfLink}</div>` : ''}</div>`;
+      document.getElementById('cancelControls').style.display = editable ? '' : 'none';
+      document.getElementById('cancelReason').value = '';
+      document.querySelector('#editForm button[type="submit"]').style.display = editable ? '' : 'none';
+      document.getElementById('contractDialog').showModal();
+      document.getElementById('dialogClose').focus();
     }
 
-    async function refresh(message) { state.data=await callServer('getBootstrapData'); renderAll(); if(message) toast(message); }
+    function setFormDirtyTracking(formId, stateKey) {
+      const form = document.getElementById(formId);
+      ['input', 'change'].forEach(eventName => form.addEventListener(eventName, () => { state.formDirty[stateKey] = true; }));
+      form.addEventListener('reset', () => { state.formDirty[stateKey] = false; });
+    }
 
-    document.querySelectorAll('[data-view]').forEach(btn=>btn.addEventListener('click',()=>switchView(btn.dataset.view)));
-    document.querySelectorAll('[data-go]').forEach(btn=>btn.addEventListener('click',()=>switchView(btn.dataset.go)));
-    document.getElementById('contractSearch').addEventListener('input',renderContracts); document.getElementById('contractStatus').addEventListener('change',renderContracts); document.getElementById('clientSearch').addEventListener('input',renderClients);
-    document.getElementById('dialogClose').onclick=document.getElementById('closeContractButton').onclick=()=>document.getElementById('contractDialog').close();
-    document.getElementById('paymentForm').date.value=today(); document.getElementById('contractForm').elaborationDate.value=today();
-    ['eventDate','initialDeposit'].forEach(name=>document.getElementById('contractForm')[name].addEventListener('input',updatePaymentPreview)); document.getElementById('contractForm').total.addEventListener('input',e=>{e.target.dataset.edited='true';updatePaymentPreview();});
+    document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.view)));
+    document.querySelectorAll('[data-go]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.go)));
+    document.getElementById('contractSearch').addEventListener('input', renderContracts);
+    document.getElementById('contractStatus').addEventListener('change', renderContracts);
+    document.getElementById('clientSearch').addEventListener('input', renderClients);
+    document.getElementById('contractsBody').addEventListener('click', event => {
+      const button = event.target.closest('[data-contract-id]');
+      if (button) openContract(button.dataset.contractId);
+    });
+    document.getElementById('dialogClose').onclick = document.getElementById('closeContractButton').onclick = () => document.getElementById('contractDialog').close();
+    document.getElementById('contractDialog').addEventListener('close', () => { state.selectedContract = null; state.formDirty.edit = false; });
+    document.getElementById('refreshButton').addEventListener('click', () => loadLatest({ message:'Datos actualizados. Los formularios abiertos se conservaron.', showBusy:true }));
 
-    document.getElementById('ineFile').addEventListener('change',async event=>{ const file=event.target.files[0]; if(!file)return; state.ineDataUrl=await fileToCompressedDataUrl(file); document.getElementById('inePreview').innerHTML=`<img src="${state.ineDataUrl}" alt="Vista previa de identificación ficticia">`; });
-    document.getElementById('ocrButton').addEventListener('click',async()=>{ if(!state.ineDataUrl)return toast('Selecciona primero una imagen ficticia.',true); if(!window.Tesseract)return toast('El OCR no pudo cargarse. Captura los datos manualmente.',true); showLoading('Leyendo la identificación…'); try { const result=await Tesseract.recognize(state.ineDataUrl,'spa',{logger:m=>{ if(m.status)document.getElementById('ocrStatus').textContent=`${m.status} ${m.progress?Math.round(m.progress*100)+'%':''}`; }}); const fields=extractIneFields(result.data.text); const form=document.getElementById('contractForm'); if(fields.name)form.clientName.value=fields.name;if(fields.address)form.address.value=fields.address; toast('Lectura terminada. Confirma y corrige los datos.'); } catch(error){toast(`No se pudo leer: ${error.message}`,true);} finally{hideLoading();} });
+    const paymentForm = document.getElementById('paymentForm');
+    const contractForm = document.getElementById('contractForm');
+    paymentForm.elements.namedItem('date').value = today();
+    contractForm.elements.namedItem('elaborationDate').value = today();
+    ['eventDate', 'initialDeposit'].forEach(name => contractForm.elements.namedItem(name).addEventListener('input', updatePaymentPreview));
+    contractForm.elements.namedItem('total').addEventListener('input', event => { event.target.dataset.edited = 'true'; updatePaymentPreview(); });
+    setFormDirtyTracking('contractForm', 'contract');
+    setFormDirtyTracking('paymentForm', 'payment');
+    setFormDirtyTracking('editForm', 'edit');
 
-    document.getElementById('contractForm').addEventListener('reset',()=>{state.ineDataUrl='';setTimeout(()=>{document.getElementById('inePreview').innerHTML='Vista previa<br>de la INE';document.getElementById('contractForm').elaborationDate.value=today();delete document.getElementById('contractForm').total.dataset.edited;updatePaymentPreview();},0);});
-    document.getElementById('contractForm').addEventListener('submit',async event=>{event.preventDefault();const form=new FormData(event.target);const payload=Object.fromEntries(form.entries());payload.total=Number(payload.total);payload.initialDeposit=Number(payload.initialDeposit);payload.requestId=uuid();payload.ineDataUrl=state.ineDataUrl;showLoading('Generando contrato, carpeta y agenda…');try{await callServer('createContract',payload);event.target.reset();await refresh('Contrato generado correctamente.');switchView('contracts');}catch(error){toast(error.message,true);}finally{hideLoading();}});
-    document.getElementById('paymentForm').addEventListener('submit',async event=>{event.preventDefault();const payload=Object.fromEntries(new FormData(event.target).entries());payload.amount=Number(payload.amount);showLoading('Registrando pago y generando recibo…');try{await callServer('addPayment',payload);event.target.reset();event.target.date.value=today();await refresh('Pago y recibo guardados.');}catch(error){toast(error.message,true);}finally{hideLoading();}});
-    document.getElementById('editForm').addEventListener('submit',async event=>{event.preventDefault();const payload=Object.fromEntries(new FormData(event.target).entries());payload.total=Number(payload.total);showLoading('Creando nueva versión…');try{await callServer('updateContract',payload);document.getElementById('contractDialog').close();await refresh('Contrato actualizado sin borrar la versión anterior.');}catch(error){toast(error.message,true);}finally{hideLoading();}});
-    document.getElementById('cancelContractButton').addEventListener('click',async()=>{const reason=prompt('Motivo de cancelación:');if(!reason)return;showLoading('Marcando contrato como cancelado…');try{await callServer('cancelContract',{id:state.selectedContract.id,reason});document.getElementById('contractDialog').close();await refresh('Contrato cancelado y fecha liberada.');}catch(error){toast(error.message,true);}finally{hideLoading();}});
+    document.getElementById('ineFile').addEventListener('change', async event => {
+      const file = event.target.files?.[0];
+      state.ineDataUrl = '';
+      clearOcrState();
+      setInePreview();
+      if (!file) return;
+      showLoading('Preparando la imagen ficticia…');
+      try {
+        state.ineDataUrl = await fileToCompressedDataUrl(file);
+        setInePreview(state.ineDataUrl);
+        document.getElementById('ocrStatus').textContent = 'Imagen lista para lectura local.';
+      } catch (error) {
+        event.target.value = '';
+        state.ineDataUrl = '';
+        setInePreview();
+        document.getElementById('ocrStatus').textContent = error.message;
+        toast(error.message, true);
+      } finally {
+        hideLoading();
+      }
+    });
 
-    window.openContract=openContract;
+    document.getElementById('ocrButton').addEventListener('click', async () => {
+      const ocrStatus = document.getElementById('ocrStatus');
+      clearOcrState();
+      if (!state.ineDataUrl) {
+        ocrStatus.textContent = 'Selecciona primero una imagen ficticia.';
+        return toast('Selecciona primero una imagen ficticia.', true);
+      }
+      if (!window.Tesseract?.recognize) {
+        ocrStatus.textContent = 'OCR no disponible; captura los datos manualmente.';
+        return toast('El OCR no pudo cargarse. Captura los datos manualmente.', true);
+      }
+      showLoading('Leyendo la identificación ficticia…');
+      ocrStatus.textContent = 'Iniciando OCR local…';
+      try {
+        const result = await window.Tesseract.recognize(state.ineDataUrl, 'spa', {
+          logger: message => {
+            if (message.status) ocrStatus.textContent = `${message.status}${Number.isFinite(message.progress) ? ` ${Math.round(message.progress * 100)}%` : ''}`;
+          }
+        });
+        const fields = extractIneFields(result?.data?.text || '');
+        if (fields.name) contractForm.elements.namedItem('clientName').value = fields.name;
+        if (fields.address) contractForm.elements.namedItem('address').value = fields.address;
+        if (!fields.name && !fields.address) {
+          ocrStatus.textContent = 'No se extrajeron nombre ni domicilio. Captúralos manualmente.';
+          toast('El OCR terminó, pero no detectó nombre ni domicilio.', true);
+        } else if (!fields.name || !fields.address) {
+          const missing = fields.name ? 'domicilio' : 'nombre';
+          ocrStatus.textContent = `Lectura parcial: falta ${missing}. Revísalo y captúralo manualmente.`;
+          toast(`OCR parcial: revisa y completa el ${missing}.`, true);
+        } else {
+          ocrStatus.textContent = 'Nombre y domicilio detectados. Revisa y corrige ambos campos.';
+          toast('Lectura terminada. Confirma y corrige los datos.');
+        }
+        state.formDirty.contract = true;
+      } catch (error) {
+        ocrStatus.textContent = `No se pudo completar el OCR: ${error.message}`;
+        toast(`No se pudo leer: ${error.message}`, true);
+      } finally {
+        hideLoading();
+      }
+    });
+
+    contractForm.addEventListener('reset', () => {
+      clearPendingRequestId('contract');
+      state.ineDataUrl = '';
+      clearOcrState();
+      setInePreview();
+      setTimeout(() => {
+        contractForm.elements.namedItem('elaborationDate').value = today();
+        delete contractForm.elements.namedItem('total').dataset.edited;
+        resetPaymentPreview();
+      }, 0);
+    });
+
+    paymentForm.addEventListener('reset', () => {
+      clearPendingRequestId('payment');
+      setTimeout(() => { paymentForm.elements.namedItem('date').value = today(); }, 0);
+    });
+
+    contractForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!contractForm.elements.namedItem('reviewConfirmed').checked) return toast('Confirma la revisión y el uso de una identificación ficticia.', true);
+      const payload = Object.fromEntries(new FormData(event.target).entries());
+      payload.total = Number(payload.total);
+      payload.initialDeposit = Number(payload.initialDeposit);
+      const fingerprint = pendingRequestFingerprint(Object.assign({}, payload, { hasIne:Boolean(state.ineDataUrl) }), [
+        'elaborationDate', 'eventDate', 'startTime', 'endTime', 'eventType', 'clientName',
+        'address', 'phone', 'total', 'initialDeposit', 'paymentMethod', 'overrideReason', 'hasIne'
+      ]);
+      payload.requestId = getOrCreatePendingRequestId('contract', fingerprint);
+      payload.ineDataUrl = state.ineDataUrl;
+      showLoading('Generando contrato, carpeta y agenda…');
+      try {
+        await callServer('createContract', payload);
+        clearPendingRequestId('contract');
+        event.target.reset();
+        await loadLatest({ message:'Contrato generado correctamente.' });
+        switchView('contracts');
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        hideLoading();
+      }
+    });
+
+    paymentForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const payload = Object.fromEntries(new FormData(event.target).entries());
+      payload.amount = Number(payload.amount);
+      const fingerprint = pendingRequestFingerprint(payload, ['contractId', 'date', 'amount', 'method', 'note']);
+      payload.requestId = getOrCreatePendingRequestId('payment', fingerprint);
+      showLoading('Registrando pago y generando recibo…');
+      try {
+        await callServer('addPayment', payload);
+        clearPendingRequestId('payment');
+        event.target.reset();
+        await loadLatest({ message:'Pago y recibo guardados.' });
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        hideLoading();
+      }
+    });
+
+    document.getElementById('editForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      const payload = Object.fromEntries(new FormData(event.target).entries());
+      payload.total = Number(payload.total);
+      payload.expectedVersion = Number(payload.expectedVersion);
+      showLoading('Creando nueva versión…');
+      try {
+        await callServer('updateContract', payload);
+        state.formDirty.edit = false;
+        document.getElementById('contractDialog').close();
+        await loadLatest({ message:'Contrato actualizado sin borrar la versión anterior.' });
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        hideLoading();
+      }
+    });
+
+    document.getElementById('cancelContractButton').addEventListener('click', async () => {
+      const reason = document.getElementById('cancelReason').value.trim();
+      if (!reason) return toast('Indica el motivo de la cancelación.', true);
+      if (!reason || !state.selectedContract) return;
+      showLoading('Marcando contrato como cancelado…');
+      try {
+        await callServer('cancelContract', { id:state.selectedContract.id, reason, expectedVersion:state.selectedContract.version });
+        document.getElementById('contractDialog').close();
+        await loadLatest({ message:'Contrato cancelado y fecha liberada.' });
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        hideLoading();
+      }
+    });
+
+    document.getElementById('installAutomationsButton').addEventListener('click', async () => {
+      showLoading('Instalando automatizaciones…');
+      try {
+        await callServer('installAutomations');
+        await loadLatest({ message:'Automatizaciones instaladas o reparadas.' });
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        hideLoading();
+      }
+    });
+
+    document.getElementById('runAutomationButton').addEventListener('click', async () => {
+      showLoading('Ejecutando automatizaciones…');
+      try {
+        const result = await callServer('runAutomationNow');
+        const summary = result?.summary ?? result;
+        state.automationLastSummary = summary;
+        state.automationLastRunAt = nowLocalIso();
+        const message = summary && typeof summary === 'object'
+          ? `Ejecución completada: ${Number(summary.processed || 0)} procesados, ${Number(summary.errors || 0)} errores.`
+          : (typeof summary === 'string' && summary ? summary : 'Ejecución manual completada.');
+        await loadLatest({ message });
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        hideLoading();
+      }
+    });
+
+    document.getElementById('resetDemoButton').addEventListener('click', async () => {
+      if (!state.isDemo || !window.confirm('¿Restablecer todos los datos ficticios de esta demostración?')) return;
+      try { window.localStorage.removeItem(DEMO_STORAGE_KEY); } catch (ignored) {}
+      state.mockMemory = mockSeed();
+      saveMock(state.mockMemory);
+      clearPendingRequestId('contract');
+      clearPendingRequestId('payment');
+      contractForm.reset();
+      paymentForm.reset();
+      await loadLatest({ message:'Demostración restablecida.', showBusy:true });
+      switchView('dashboard');
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') loadLatest({ automatic:true });
+    });
+    window.setInterval(() => {
+      if (document.visibilityState === 'visible') loadLatest({ automatic:true });
+    }, 60000);
+
+    window.openContract = openContract;
+    window.extractIneFields = extractIneFields;
     bootstrap();
   </script>
 </body>

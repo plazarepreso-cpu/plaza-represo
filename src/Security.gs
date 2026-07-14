@@ -31,3 +31,9 @@ function stripPrivateClientFields_(client) {
     updatedAt: client.updatedAt
   };
 }
+
+function stripPrivateContractFields_(contract) {
+  const publicContract = Object.assign({}, contract);
+  delete publicContract.ineFileId;
+  return publicContract;
+}

@@ -80,4 +80,28 @@ test('la vista pública del cliente no filtra el identificador privado', () => {
   assert.strictEqual(Object.prototype.hasOwnProperty.call(publicClient, 'ineFileId'), false);
 });
 
+test('los contratos enviados al panel no filtran el identificador privado', () => {
+  const publicContract = JSON.parse(JSON.stringify(context.stripPrivateContractFields_({
+    id: 'contrato-ficticio-001',
+    contractNumber: 'C.9001',
+    ineFileId: 'archivo-ine-ficticio-historico'
+  })));
+
+  assert.strictEqual(publicContract.contractNumber, 'C.9001');
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(publicContract, 'ineFileId'), false);
+  assert.match(fs.readFileSync('src/ContractService.gs', 'utf8'), /\.map\(stripPrivateContractFields_\)/);
+});
+
+test('la instalación queda privada para google.script.run', () => {
+  const configSource = fs.readFileSync('src/Config.gs', 'utf8');
+  assert.match(configSource, /function setupSystem_\(/);
+  assert.doesNotMatch(configSource, /function setupSystem\(/);
+});
+
+test('el panel no permite embeber acciones desde otros sitios', () => {
+  const configSource = fs.readFileSync('src/Config.gs', 'utf8');
+  assert.doesNotMatch(configSource, /XFrameOptionsMode\.ALLOWALL/);
+  assert.match(configSource, /function getSystemInfo\(\)\s*{\s*currentUser_\(\)/);
+});
+
 console.log(`${passed} casos de seguridad verificados correctamente.`);

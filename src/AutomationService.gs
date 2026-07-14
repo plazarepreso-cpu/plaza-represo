@@ -33,12 +33,14 @@ function installAutomations() {
     .create();
 
   const status = getAutomationStatus_();
-  audit_('INSTALAR_AUTOMATIZACIONES', 'Sistema', DAILY_AUTOMATION_HANDLER_, {
-    installedBy: user.email,
-    triggerCount: status.triggerCount,
-    hour: status.hour,
-    timeZone: status.timeZone
-  });
+  try {
+    audit_('INSTALAR_AUTOMATIZACIONES', 'Sistema', DAILY_AUTOMATION_HANDLER_, {
+      installedBy: user.email,
+      triggerCount: status.triggerCount,
+      hour: status.hour,
+      timeZone: status.timeZone
+    });
+  } catch (ignored) {}
   return status;
 }
 
@@ -90,7 +92,8 @@ function runDailyAutomation_() {
       }
     });
 
-    audit_('EJECUTAR_AUTOMATIZACION', 'Sistema', DAILY_AUTOMATION_HANDLER_, summary);
+    try { audit_('EJECUTAR_AUTOMATIZACION', 'Sistema', DAILY_AUTOMATION_HANDLER_, summary); }
+    catch (ignored) {}
     return summary;
   } finally {
     if (lockAcquired) lock.releaseLock();

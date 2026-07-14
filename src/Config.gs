@@ -15,7 +15,7 @@ const SHEET_HEADERS = Object.freeze({
   Contratos: [
     'id', 'requestId', 'contractNumber', 'version', 'status', 'createdAt', 'updatedAt',
     'elaborationDate', 'eventDate', 'eventDay', 'startTime', 'endTime', 'eventType',
-    'clientId', 'clientName', 'address', 'phone', 'total', 'initialDeposit', 'paid',
+    'clientId', 'ineFileId', 'clientName', 'address', 'phone', 'total', 'initialDeposit', 'paid',
     'balance', 'overrideReason', 'folderId', 'currentPdfFileId', 'calendarEventId',
     'createdBy', 'updatedBy', 'cancelReason'
   ],
@@ -50,7 +50,7 @@ function doGet() {
 /**
  * Crea todos los recursos Google. Debe ejecutarse una sola vez desde la cuenta del propietario.
  */
-function setupSystem(ownerEmail, employeeEmail) {
+function setupSystem_(ownerEmail, employeeEmail) {
   const owner = String(ownerEmail || '').trim().toLowerCase();
   const employee = String(employeeEmail || '').trim().toLowerCase();
   if (!owner || !owner.includes('@')) throw new Error('Se requiere el correo válido del propietario.');
@@ -112,7 +112,8 @@ function setupSystem(ownerEmail, employeeEmail) {
     };
     Object.keys(settings).forEach(key => appendObject_('Configuracion', { key, value: settings[key] }));
 
-    audit_('CONFIGURAR_SISTEMA', 'Sistema', spreadsheet.getId(), { owner, employee });
+    try { audit_('CONFIGURAR_SISTEMA', 'Sistema', spreadsheet.getId(), { owner, employee }); }
+    catch (ignored) {}
     return getSystemInfo_();
   } finally {
     lock.releaseLock();

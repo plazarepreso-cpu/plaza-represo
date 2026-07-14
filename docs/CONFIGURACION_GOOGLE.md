@@ -18,7 +18,7 @@
 
 1. Crear un proyecto de Google Apps Script en la cuenta del propietario.
 2. Copiar `clasp.example.json` como `.clasp.json`, colocar el ID privado del proyecto y cargar el contenido de `src/`.
-3. Ejecutar `setupSystem(ownerEmail, employeeEmail)` una vez.
+3. Ejecutar `setupSystem_(ownerEmail, employeeEmail)` una vez desde el editor de Apps Script. El guion bajo final evita que esta instalación pueda invocarse desde el navegador.
 4. Revisar los recursos creados antes de compartirlos.
 5. Abrir el panel como propietario, entrar a **Automatizaciones** e instalar la conciliación diaria.
 6. Compartir la carpeta de contratos y el calendario con el empleado como lector.
