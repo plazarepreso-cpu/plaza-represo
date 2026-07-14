@@ -174,4 +174,13 @@ test('la copia integrada corresponde exactamente al logo original de Plaza Repre
   assert.deepStrictEqual(embeddedLogo, originalLogo);
 });
 
+test('el pie conserva el apartado y agradecimiento sin duplicar dirección ni capacidad', () => {
+  const footerMatch = source.match(/function appendContractFooter_\([\s\S]*?\n}\n\nfunction buildContractDocument_/);
+  assert.ok(footerMatch, 'el generador del pie debe existir');
+  const footerSource = footerMatch[0];
+  assert.match(footerSource, /SE APARTÓ CON LA CANTIDAD DE/);
+  assert.match(footerSource, /PLAZA REPRESO AGRADECE SU PREFERENCIA/);
+  assert.doesNotMatch(footerSource, /DIRECCIÓN DEL SALÓN|CAPACIDAD MÁXIMA|VENUE_ADDRESS|MAX_CAPACITY/);
+});
+
 console.log(`${passed} casos de marca en contratos y recibos verificados correctamente.`);

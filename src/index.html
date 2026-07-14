@@ -325,15 +325,15 @@
         </section>
 
         <section class="view owner-only" id="view-contracts">
-          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios. Usa “Liquidar saldo” para registrar el pago final sin crear otro contrato.</p></div><div class="filters"><button class="btn btn-ghost owner-only" type="button" id="syncFilesButton">Vincular archivos de Drive</button><div><label class="sr-only" for="contractSearch">Buscar contrato</label><input id="contractSearch" placeholder="Buscar número o cliente"></div><div><label class="sr-only" for="contractStatus">Filtrar por estado</label><select id="contractStatus"><option value="">Todos</option><option>CONFIRMADO</option><option value="PAGADO">LIQUIDADO</option><option>CANCELADO</option><option>CALENDARIO</option><option>ERROR</option></select></div></div></div>
+          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios. Registra un abono parcial o liquida el saldo sin crear otro contrato.</p></div><div class="filters"><button class="btn btn-ghost owner-only" type="button" id="syncFilesButton">Vincular archivos de Drive</button><div><label class="sr-only" for="contractSearch">Buscar contrato</label><input id="contractSearch" placeholder="Buscar número o cliente"></div><div><label class="sr-only" for="contractStatus">Filtrar por estado</label><select id="contractStatus"><option value="">Todos</option><option>CONFIRMADO</option><option value="PAGADO">LIQUIDADO</option><option>CANCELADO</option><option>CALENDARIO</option><option>ERROR</option></select></div></div></div>
           <div class="card table-wrap"><table class="data"><thead><tr><th>Contrato</th><th>Evento</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th></th></tr></thead><tbody id="contractsBody"></tbody></table></div>
         </section>
 
         <section class="view owner-only" id="view-payments">
-          <div class="page-head"><div><h3>Pagos y recibos</h3><p>El contrato original se conserva; cada abono genera historial. También puedes cobrar contratos anteriores ya indexados.</p></div></div>
+          <div class="page-head"><div><h3>Pagos y recibos</h3><p>El contrato original se conserva. Registra un abono para mover una parte del saldo, o liquídalo completo sin crear otro contrato.</p></div></div>
           <div class="grid dashboard-grid">
             <form class="card form-card owner-only" id="paymentForm">
-              <div class="card-head"><h4>Registrar pago</h4></div>
+              <div class="card-head"><h4>Registrar abono / mover saldo</h4></div>
               <div class="card-body form-grid">
                 <div class="field full"><label for="paymentContract">Contrato</label><select name="contractId" id="paymentContract" required></select></div>
                 <div class="field full" id="paymentBalanceHint" style="color:var(--muted);font-size:13px" aria-live="polite"></div>
@@ -341,7 +341,7 @@
                 <div class="field half"><label for="paymentAmount">Cantidad</label><input id="paymentAmount" name="amount" type="number" min="0.01" step="0.01" required></div>
                 <div class="field half"><label for="paymentMethod">Método</label><select id="paymentMethod" name="method"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option></select></div>
                 <div class="field half"><label for="paymentNote">Nota</label><input id="paymentNote" name="note" value="Abono al contrato"></div>
-                <div class="field full"><button class="btn btn-primary" type="submit" style="width:100%">Guardar y generar recibo</button></div>
+                <div class="field full" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost" type="button" id="fillPaymentBalance">Liquidar este saldo</button><button class="btn btn-primary" type="submit" style="flex:1">Guardar abono y generar recibo</button></div>
               </div>
             </form>
             <div class="card"><div class="card-head"><h4>Movimientos recientes</h4></div><div class="card-body list" id="paymentsList"></div></div>
@@ -1159,10 +1159,14 @@
         const managed = contract.source === 'CONTRATO';
         const sourceLabel = managed ? `Versión ${contract.version || 1}` : (contract.source === 'ARCHIVO_ANTERIOR' ? 'Contrato anterior' : 'Registrado en Calendar');
         const missingFile = managed || contract.currentPdfFileId ? '' : '<span style="color:var(--muted);font-size:12px">Archivo no vinculado</span>';
+        const partialPaymentAction = canRegisterPayment(contract)
+          ? `<button class="btn btn-ghost btn-small" type="button" data-partial-payment-id="${escapeHtml(contract.id)}">Registrar abono</button>`
+          : '';
         const paymentAction = canRegisterPayment(contract)
           ? `<button class="btn btn-primary btn-small" type="button" data-register-payment-id="${escapeHtml(contract.id)}">Liquidar saldo</button>`
           : '';
-        const action = `<button class="btn btn-ghost btn-small" type="button" data-contract-id="${escapeHtml(contract.id)}">Ver datos</button>${paymentAction}${pdfLink}${missingFile}`;
+        const detailLabel = managed ? 'Editar' : 'Ver datos';
+        const action = `<button class="btn btn-ghost btn-small" type="button" data-contract-id="${escapeHtml(contract.id)}">${detailLabel}</button>${partialPaymentAction}${paymentAction}${pdfLink}${missingFile}`;
         const amount = value => value === '' || value === null || value === undefined ? '—' : money(value);
         return `<tr><td><strong>${escapeHtml(contract.contractNumber)}</strong><br><small>${escapeHtml(sourceLabel)}</small></td><td>${escapeHtml(contract.eventDate || '—')}<br><small>${escapeHtml(contract.startTime || '—')}–${escapeHtml(contract.endTime || '—')}</small></td><td>${escapeHtml(contract.clientName || 'Sin nombre registrado')}</td><td>${amount(contract.total)}</td><td>${amount(contract.paid)}</td><td><strong>${amount(contract.balance)}</strong></td><td><span class="status ${statusClass(status)}">${escapeHtml(status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap">${action}</div></td></tr>`;
       }).join('') || '<tr><td colspan="8" class="empty">No se encontraron contratos.</td></tr>';
@@ -1189,7 +1193,12 @@
         const completed = paymentStatus === 'COMPLETADO';
         const receiptLink = completed ? driveFileLink(payment.receiptFileId, 'Recibo') : '';
         const statusBadge = `<span class="status ${statusClass(paymentStatus)}">${escapeHtml(paymentStatus)}</span>`;
-        return `<div class="money-row"><div><strong>${escapeHtml(payment.contractNumber)}</strong> ${statusBadge}<br><small>${escapeHtml(payment.date)} · ${escapeHtml(payment.method || '')}</small>${receiptLink ? `<div style="margin-top:6px">${receiptLink}</div>` : ''}</div><strong style="color:${completed ? 'var(--green)' : 'var(--red)'}">${money(payment.amount)}</strong></div>`;
+        const balanceAfter = Number.isFinite(Number(payment.newBalance))
+          ? `<br><small>Saldo tras este pago: ${money(payment.newBalance)}</small>` : '';
+        const contract = contractItems().find(item => String(item.id) === String(payment.contractId));
+        const editButton = contract?.source === 'CONTRATO'
+          ? `<button class="btn btn-ghost btn-small" type="button" data-payment-edit-contract-id="${escapeHtml(contract.id)}">Editar contrato</button>` : '';
+        return `<div class="money-row"><div><strong>${escapeHtml(payment.contractNumber)}</strong> ${statusBadge}<br><small>${escapeHtml(payment.date)} · ${escapeHtml(payment.method || '')}</small>${balanceAfter}${receiptLink || editButton ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${receiptLink}${editButton}</div>` : ''}</div><strong style="color:${completed ? 'var(--green)' : 'var(--red)'}">${money(payment.amount)}</strong></div>`;
       }).join('') || '<div class="empty">No hay pagos registrados.</div>';
     }
 
@@ -1207,7 +1216,7 @@
         return;
       }
       amountInput.max = String(balance);
-      hint.textContent = `Saldo pendiente de este contrato: ${money(balance)}. Puedes registrar un abono o liquidarlo completo.`;
+      hint.textContent = `Saldo pendiente de este contrato: ${money(balance)}. Registra un abono para mover una parte del saldo, o liquídalo completo.`;
       if (fillLiquidation) {
         amountInput.value = String(balance);
         noteInput.value = 'Liquidación del contrato';
@@ -1215,7 +1224,7 @@
       }
     }
 
-    function prepareLiquidationPayment(id) {
+    function preparePaymentMovement(id, { fillLiquidation = false } = {}) {
       const contract = contractItems().find(item => String(item.id) === String(id));
       if (!contract || !canRegisterPayment(contract)) {
         return toast('Este contrato no tiene un saldo disponible para registrar.', true);
@@ -1226,10 +1235,26 @@
       state.paymentReturnContractId = String(contract.id);
       renderPayments(String(contract.id));
       switchView('payments');
-      updatePaymentSelection({ fillLiquidation:true });
-      document.getElementById('paymentDate').value = today();
-      document.getElementById('paymentAmount').focus();
-      toast(`Pago final preparado para ${contract.contractNumber}: ${money(contract.balance)}.`);
+      const form = document.getElementById('paymentForm');
+      form.elements.namedItem('date').value = today();
+      if (fillLiquidation) {
+        updatePaymentSelection({ fillLiquidation:true });
+        toast(`Pago final preparado para ${contract.contractNumber}: ${money(contract.balance)}.`);
+      } else {
+        form.elements.namedItem('amount').value = '';
+        form.elements.namedItem('note').value = 'Abono al contrato';
+        state.formDirty.payment = false;
+        toast(`Abono preparado para ${contract.contractNumber}. Indica la cantidad a registrar; no se creará otro contrato.`);
+      }
+      form.elements.namedItem('amount').focus();
+    }
+
+    function preparePartialPayment(id) {
+      preparePaymentMovement(id);
+    }
+
+    function prepareLiquidationPayment(id) {
+      preparePaymentMovement(id, { fillLiquidation:true });
     }
 
     function renderClients() {
@@ -1509,7 +1534,7 @@
           : `<button class="btn btn-ghost btn-small" type="button" ${managed ? `data-ine-contract-id="${escapeHtml(contract.id)}"` : `data-ine-client-id="${escapeHtml(client?.id || '')}"`}>Abrir INE privada</button>`)
         : '';
       const paymentButton = canRegisterPayment(contract)
-        ? `<button class="btn btn-primary btn-small" type="button" data-register-payment-id="${escapeHtml(contract.id)}">Liquidar saldo ${money(contract.balance)}</button>`
+        ? `<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-small" type="button" data-partial-payment-id="${escapeHtml(contract.id)}">Registrar abono</button><button class="btn btn-primary btn-small" type="button" data-register-payment-id="${escapeHtml(contract.id)}">Liquidar saldo ${money(contract.balance)}</button></div>`
         : (contractStatusLabel(contract) === 'LIQUIDADO' ? '<span class="status LIQUIDADO">LIQUIDADO</span>' : '');
       const versionText = managed ? `Versión actual: <strong>${escapeHtml(contract.version || 1)}</strong>` : 'Registro anterior de solo lectura';
       const fileStatus = pdfLink ? `<div style="margin-top:10px">${pdfLink}</div>` : '<div style="margin-top:10px;color:var(--muted)">Archivo original todavía no vinculado.</div>';
@@ -1549,6 +1574,11 @@
       if (button) openPrivateIne({ clientId:button.dataset.ineClientId });
     });
     document.getElementById('dialogFields').addEventListener('click', event => {
+      const partialPaymentButton = event.target.closest('[data-partial-payment-id]');
+      if (partialPaymentButton) {
+        preparePartialPayment(partialPaymentButton.dataset.partialPaymentId);
+        return;
+      }
       const paymentButton = event.target.closest('[data-register-payment-id]');
       if (paymentButton) {
         prepareLiquidationPayment(paymentButton.dataset.registerPaymentId);
@@ -1560,6 +1590,11 @@
       else openPrivateIne({ clientId:button.dataset.ineClientId });
     });
     document.getElementById('contractsBody').addEventListener('click', event => {
+      const partialPaymentButton = event.target.closest('[data-partial-payment-id]');
+      if (partialPaymentButton) {
+        preparePartialPayment(partialPaymentButton.dataset.partialPaymentId);
+        return;
+      }
       const paymentButton = event.target.closest('[data-register-payment-id]');
       if (paymentButton) {
         prepareLiquidationPayment(paymentButton.dataset.registerPaymentId);
@@ -1567,6 +1602,10 @@
       }
       const button = event.target.closest('[data-contract-id]');
       if (button) openContract(button.dataset.contractId);
+    });
+    document.getElementById('paymentsList').addEventListener('click', event => {
+      const button = event.target.closest('[data-payment-edit-contract-id]');
+      if (button) openContract(button.dataset.paymentEditContractId);
     });
     document.getElementById('dialogClose').onclick = document.getElementById('closeContractButton').onclick = () => document.getElementById('contractDialog').close();
     document.getElementById('contractDialog').addEventListener('close', () => { state.selectedContract = null; state.formDirty.edit = false; });
@@ -1606,6 +1645,13 @@
       state.paymentReturnView = '';
       state.paymentReturnContractId = '';
       updatePaymentSelection();
+    });
+    document.getElementById('fillPaymentBalance').addEventListener('click', () => {
+      const selected = paymentForm.elements.namedItem('contractId').selectedOptions[0];
+      const balance = roundMoney(Number(selected?.dataset.paymentBalance || 0));
+      if (!selected?.value || balance <= 0) return toast('Selecciona un contrato con saldo pendiente.', true);
+      updatePaymentSelection({ fillLiquidation:true });
+      paymentForm.elements.namedItem('amount').focus();
     });
     ['eventDate', 'initialDeposit'].forEach(name => contractForm.elements.namedItem(name).addEventListener('input', updatePaymentPreview));
     contractForm.elements.namedItem('total').addEventListener('input', event => { event.target.dataset.edited = 'true'; updatePaymentPreview(); });

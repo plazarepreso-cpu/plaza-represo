@@ -240,28 +240,6 @@ def draw_contract(pdf, contract: dict, clauses: list[str]) -> None:
     pdf.setFillColor(INK)
     pdf.setFont("Helvetica-Bold", 8)
     pdf.drawCentredString(width / 2, deposit_y - 13, "PLAZA REPRESO AGRADECE SU PREFERENCIA")
-
-    footer_y = max(31, deposit_y - 70)
-    pdf.setFillColor(PAPER)
-    pdf.setStrokeColor(INK)
-    pdf.roundRect(40, footer_y, 542, 45, 6, stroke=1, fill=1)
-    pdf.setStrokeColor(GOLD)
-    pdf.line(430, footer_y + 6, 430, footer_y + 39)
-    pdf.setFillColor(RED)
-    pdf.setFont("Helvetica-Bold", 7)
-    pdf.drawString(52, footer_y + 29, "DIRECCIÓN DEL SALÓN")
-    pdf.drawCentredString(506, footer_y + 29, "CAPACIDAD MÁXIMA")
-    draw_paragraph(
-        pdf,
-        "Ave. Tecnológico y Calle Cahitas No. 250,<br/>Col. Luis Donaldo Colosio, Nogales, Sonora.",
-        52,
-        footer_y + 23,
-        360,
-        paragraph_style("address", 6.4, 7.5),
-    )
-    pdf.setFillColor(INK)
-    pdf.setFont("Helvetica-Bold", 12)
-    pdf.drawCentredString(506, footer_y + 11, "100 PERSONAS")
     pdf.showPage()
 
 

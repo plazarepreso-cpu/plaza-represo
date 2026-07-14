@@ -35,7 +35,7 @@ assert.match(html, /callServer\('importHistoricalContracts'/, 'el panel envía �
 assert.match(html, /id="indexHistoricalButton"/, 'el propietario puede indexar contratos existentes sin duplicarlos');
 assert.match(html, /callServer\('indexHistoricalContracts'/, 'el índice histórico usa la operación segura sin crear archivos ni eventos');
 assert.match(html, /solo guarda el índice y no crea copias/, 'el panel explica cómo evitar duplicar el historial existente');
-assert.match(html, /const action = `[^`]*Ver datos/, 'todos los contratos muestran la acción Ver datos');
+assert.match(html, /const detailLabel = managed \? 'Editar' : 'Ver datos'/, 'los contratos administrados muestran una acción clara para editar');
 assert.match(html, /client\.hasIne && state\.data\.user\.role === 'PROPIETARIO'/, 'el propietario puede abrir la INE desde clientes');
 assert.match(html, /Abrir INE privada/, 'el propietario puede abrir la INE desde el detalle del contrato');
 assert.match(html, /callServer\('getPrivateIneUrl', payload\)/, 'la INE se solicita al endpoint privado al abrirla');
@@ -53,6 +53,11 @@ assert.match(html, /fallback\.target = '_blank'/, 'el respaldo también conserva
 assert.doesNotMatch(html, /fallback\.target = '_top'/, 'ningún respaldo reemplaza el panel actual');
 assert.match(html, /callServer\(payload\.paymentSource === 'ARCHIVO_ANTERIOR' \? 'addHistoricalPayment' : 'addPayment', payload\)/, 'los contratos históricos aceptan pagos desde el panel');
 assert.match(html, /data-register-payment-id/, 'cada contrato con saldo puede iniciar el registro de pago desde su propia fila');
+assert.match(html, /data-partial-payment-id/, 'cada contrato con saldo permite preparar un abono parcial');
+assert.match(html, /function preparePartialPayment\(/, 'el panel prepara abonos sin precargar la liquidación');
+assert.match(html, /Registrar abono \/ mover saldo/, 'la sección de pagos explica el movimiento parcial del saldo');
+assert.match(html, /id="fillPaymentBalance"/, 'el formulario permite llenar el saldo completo solo cuando se elige esa opción');
+assert.match(html, /Saldo tras este pago:/, 'cada movimiento muestra el saldo que dejó en el contrato');
 assert.match(html, /function prepareLiquidationPayment\(/, 'el panel prepara la liquidación desde un contrato existente');
 assert.match(html, /Liquidación del contrato/, 'la liquidación se identifica correctamente en el recibo y el historial');
 assert.match(html, /data-payment-balance/, 'el pago no puede rebasar el saldo pendiente del contrato seleccionado');

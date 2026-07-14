@@ -285,31 +285,6 @@ function appendContractFooter_(body, contract) {
     fontFamily: 'Arial', fontSize: 8, bold: true, color: DOCUMENT_THEME.ink,
     align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 2, spacingAfter: 2
   });
-
-  const footer = body.appendTable([[
-    `DIRECCIÓN DEL SALÓN\n${APP_CONFIG.VENUE_ADDRESS}`,
-    `CAPACIDAD MÁXIMA\n${APP_CONFIG.MAX_CAPACITY} PERSONAS`
-  ]]);
-  footer.setBorderColor(DOCUMENT_THEME.ink).setBorderWidth(0.8);
-  footer.setColumnWidth(0, 390).setColumnWidth(1, 166);
-  const address = setCellText_(footer.getCell(0, 0), footer.getCell(0, 0).getText(), {
-    background: DOCUMENT_THEME.paper,
-    color: DOCUMENT_THEME.ink,
-    fontSize: 7,
-    paddingTop: 4,
-    paddingBottom: 4
-  });
-  const capacity = setCellText_(footer.getCell(0, 1), footer.getCell(0, 1).getText(), {
-    background: DOCUMENT_THEME.paper,
-    color: DOCUMENT_THEME.ink,
-    fontSize: 8,
-    bold: true,
-    paddingTop: 4,
-    paddingBottom: 4,
-    align: DocumentApp.HorizontalAlignment.CENTER
-  });
-  styleFragments_(address, [{ text: 'DIRECCIÓN DEL SALÓN', bold: true, color: DOCUMENT_THEME.red }]);
-  styleFragments_(capacity, [{ text: 'CAPACIDAD MÁXIMA', bold: true, color: DOCUMENT_THEME.red }]);
 }
 
 function buildContractDocument_(contract) {
