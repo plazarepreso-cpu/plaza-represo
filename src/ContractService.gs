@@ -22,6 +22,8 @@ function getBootstrapData() {
       timeZone: APP_CONFIG.TIME_ZONE
     },
     contracts,
+    agenda: listAgendaEvents_(),
+    history: listHistoricalContracts_(),
     clients,
     payments,
     system: getSystemInfo_(),

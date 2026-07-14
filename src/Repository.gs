@@ -18,7 +18,7 @@ function listObjects_(sheetName) {
   return values.slice(1)
     .filter(row => row.some(value => value !== ''))
     .map(row => headers.reduce((item, header, index) => {
-      item[header] = normalizeCellValue_(row[index]);
+      item[header] = normalizeCellValue_(row[index], header);
       return item;
     }, {}));
 }
@@ -50,7 +50,13 @@ function updateObject_(sheetName, idColumn, id, updates) {
 }
 
 function ensureSheetHeaders_(sheetName, expectedHeaders) {
-  const sheet = getSheet_(sheetName);
+  const database = getDatabase_();
+  let sheet = database.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = database.insertSheet(sheetName);
+    initializeSheet_(sheet, expectedHeaders);
+    return expectedHeaders.slice();
+  }
   const lastColumn = Math.max(sheet.getLastColumn(), 1);
   const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(String);
   const missing = expectedHeaders.filter(header => !headers.includes(header));
@@ -62,6 +68,18 @@ function ensureSheetHeaders_(sheetName, expectedHeaders) {
       .setFontColor('#ffffff');
   }
   return missing;
+}
+
+function replaceObjects_(sheetName, objects) {
+  const sheet = getSheet_(sheetName);
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, headers.length).clearContent();
+  const rows = (objects || []).map(object => headers.map(header =>
+    normalizeSheetWriteValue_(object[header] === undefined ? '' : object[header])
+  ));
+  if (rows.length) sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  return objects || [];
 }
 
 function ensureSchema_() {
@@ -76,8 +94,16 @@ function findObject_(sheetName, column, value) {
   return listObjects_(sheetName).find(item => String(item[column]) === String(value)) || null;
 }
 
-function normalizeCellValue_(value) {
-  if (value instanceof Date) return Utilities.formatDate(value, APP_CONFIG.TIME_ZONE, "yyyy-MM-dd'T'HH:mm:ss");
+function normalizeCellValue_(value, header) {
+  if (value instanceof Date) {
+    if (header === 'date' || /Date$/.test(String(header || ''))) {
+      return Utilities.formatDate(value, APP_CONFIG.TIME_ZONE, 'yyyy-MM-dd');
+    }
+    if (/Time$/.test(String(header || ''))) {
+      return Utilities.formatDate(value, APP_CONFIG.TIME_ZONE, 'HH:mm');
+    }
+    return Utilities.formatDate(value, APP_CONFIG.TIME_ZONE, "yyyy-MM-dd'T'HH:mm:ss");
+  }
   return value;
 }
 

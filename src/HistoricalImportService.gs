@@ -32,6 +32,93 @@ function normalizeHistoricalContract_(record) {
   };
 }
 
+function listHistoricalContracts_() {
+  try {
+    return listObjects_('Historial').sort((a, b) =>
+      String(a.eventDate || '').localeCompare(String(b.eventDate || ''))
+    );
+  } catch (error) {
+    return [];
+  }
+}
+
+/**
+ * Crea únicamente un índice privado de contratos que ya existen en Drive y Calendar.
+ * No genera PDFs, recibos, carpetas ni eventos, por lo que no duplica el historial.
+ */
+function indexHistoricalContracts(payload) {
+  const owner = requireOwner_();
+  const records = Array.isArray(payload) ? payload : (payload && payload.records);
+  if (!Array.isArray(records) || !records.length) throw new Error('No hay contratos anteriores para indexar.');
+  if (records.length > 100) throw new Error('Solo se permiten 100 contratos por indexación.');
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    ensureSchema_();
+    const existing = listObjects_('Historial');
+    const byNumber = new Map(existing.map(item => [String(item.contractNumber || '').toUpperCase(), item]));
+    let indexed = 0;
+    let updated = 0;
+    const results = [];
+
+    records.forEach(record => {
+      try {
+        const data = normalizeHistoricalContract_(record);
+        const timestamp = nowIso_();
+        const item = {
+          id: `historial:${data.contractNumber}`,
+          contractNumber: data.contractNumber,
+          status: data.balance === 0 ? 'PAGADO' : 'CONFIRMADO',
+          elaborationDate: data.elaborationDate,
+          eventDate: data.eventDate,
+          eventDay: eventDayName_(data.eventDate),
+          startTime: data.startTime,
+          endTime: data.endTime,
+          eventType: data.eventType,
+          clientName: data.clientName,
+          address: data.address,
+          phone: data.phone,
+          total: data.total,
+          paid: data.paid,
+          balance: data.balance,
+          source: 'ARCHIVO_ANTERIOR',
+          updatedAt: timestamp
+        };
+        const previous = byNumber.get(data.contractNumber);
+        if (previous) {
+          updateObject_('Historial', 'id', previous.id, item);
+          updated += 1;
+          results.push({ contractNumber:data.contractNumber, status:'ACTUALIZADO' });
+        } else {
+          appendObject_('Historial', item);
+          byNumber.set(data.contractNumber, item);
+          indexed += 1;
+          results.push({ contractNumber:data.contractNumber, status:'INDEXADO' });
+        }
+      } catch (error) {
+        results.push({
+          contractNumber:String(record && record.contractNumber || 'SIN NÚMERO'),
+          status:'ERROR',
+          message:String(error.message || error)
+        });
+      }
+    });
+
+    const summary = {
+      indexed,
+      updated,
+      errors:results.filter(result => result.status === 'ERROR').length,
+      results
+    };
+    try { audit_('INDEXAR_HISTORIAL_EXISTENTE', 'Sistema', owner.email, summary); }
+    catch (ignored) {}
+    return summary;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function importHistoricalContract_(record, owner) {
   const data = normalizeHistoricalContract_(record);
   const existing = findObject_('Contratos', 'contractNumber', data.contractNumber);

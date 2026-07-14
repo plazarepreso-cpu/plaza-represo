@@ -6,6 +6,7 @@ const state = {
   contracts: [],
   payments: [],
   clients: [],
+  history: [],
   audits: [],
   nextNumber: 2626,
   uuid: 0,
@@ -14,7 +15,7 @@ const state = {
 };
 
 function rows(sheetName) {
-  return ({ Contratos:state.contracts, Pagos:state.payments, Clientes:state.clients })[sheetName] || [];
+  return ({ Contratos:state.contracts, Pagos:state.payments, Clientes:state.clients, Historial:state.history })[sheetName] || [];
 }
 
 const context = vm.createContext({
@@ -138,6 +139,24 @@ test('limita el tamaño del lote y siempre libera el bloqueo adquirido', () => {
   assert.throws(() => context.importHistoricalContracts({ records:Array.from({ length:101 }, () => valid) }), /100 contratos/);
   assert.strictEqual(state.lockWaits.every(value => value === 30000), true);
   assert.strictEqual(state.lockWaits.length, state.lockReleases);
+});
+
+test('indexa contratos ya existentes sin duplicar PDF, pago, carpeta ni Calendar', () => {
+  const before = { contracts:state.contracts.length, payments:state.payments.length, clients:state.clients.length };
+  const first = context.indexHistoricalContracts({ records:[{ ...valid, contractNumber:'C.9010' }] });
+  assert.deepStrictEqual(JSON.parse(JSON.stringify({ indexed:first.indexed, updated:first.updated, errors:first.errors })), {
+    indexed:1, updated:0, errors:0
+  });
+  assert.strictEqual(state.history.length, 1);
+  assert.strictEqual(state.history[0].clientName, valid.clientName);
+  assert.deepStrictEqual({ contracts:state.contracts.length, payments:state.payments.length, clients:state.clients.length }, before);
+
+  const second = context.indexHistoricalContracts({ records:[{ ...valid, contractNumber:'C.9010', paid:4500, balance:0 }] });
+  assert.strictEqual(second.indexed, 0);
+  assert.strictEqual(second.updated, 1);
+  assert.strictEqual(state.history.length, 1);
+  assert.strictEqual(state.history[0].status, 'PAGADO');
+  assert.strictEqual(context.listHistoricalContracts_().length, 1);
 });
 
 console.log(`${passed} casos de importación histórica verificados correctamente.`);

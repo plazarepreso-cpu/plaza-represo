@@ -57,6 +57,8 @@ function runDailyAutomation_() {
     reconciled: 0,
     cancelled: 0,
     paymentDue: 0,
+    agendaSynced: 0,
+    agendaErrors: 0,
     errors: 0
   };
 
@@ -91,6 +93,15 @@ function runDailyAutomation_() {
         summary.errors += 1;
       }
     });
+
+    try {
+      const agenda = syncAgendaFromCalendars_();
+      summary.agendaSynced = Number(agenda.synced || 0);
+      summary.agendaErrors = Array.isArray(agenda.errors) ? agenda.errors.length : 0;
+    } catch (error) {
+      summary.agendaErrors = 1;
+      summary.errors += 1;
+    }
 
     try { audit_('EJECUTAR_AUTOMATIZACION', 'Sistema', DAILY_AUTOMATION_HANDLER_, summary); }
     catch (ignored) {}

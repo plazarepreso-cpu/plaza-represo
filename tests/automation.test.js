@@ -12,6 +12,7 @@ const state = {
   calendarUpdates: [],
   cancellations: [],
   savedUpdates: [],
+  agendaSyncs: 0,
   lockWaits: [],
   lockReleases: 0,
   throwOnList: false
@@ -91,6 +92,10 @@ const context = vm.createContext({
       throw new Error('Fallo ficticio al cancelar evento');
     }
   },
+  syncAgendaFromCalendars_: () => {
+    state.agendaSyncs += 1;
+    return { synced: 2, calendars: 2, errors: [] };
+  },
   updateObject_: (sheetName, idColumn, id, updates) => {
     state.savedUpdates.push({ sheetName, idColumn, id, updates: { ...updates } });
     return { id, ...updates };
@@ -169,8 +174,11 @@ assert.deepStrictEqual(JSON.parse(JSON.stringify(summary)), {
   reconciled: 3,
   cancelled: 1,
   paymentDue: 1,
+  agendaSynced: 2,
+  agendaErrors: 0,
   errors: 2
 });
+assert.strictEqual(state.agendaSyncs, 1, 'la ejecución diaria sincroniza la agenda compartida');
 assert.deepStrictEqual(state.savedUpdates, [{
   sheetName: 'Contratos',
   idColumn: 'id',

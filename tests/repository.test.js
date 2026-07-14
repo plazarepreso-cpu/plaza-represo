@@ -86,7 +86,7 @@ const context = vm.createContext({
   SHEET_HEADERS: {
     Contratos: ['id', 'status', 'requestId', 'version']
   },
-  Utilities: { formatDate: value => value.toISOString() },
+  Utilities: { formatDate: (value, zone, pattern) => `${pattern}:${value.toISOString()}` },
   PropertiesService: {
     getScriptProperties: () => ({
       getProperty: key => key === 'SPREADSHEET_ID' ? 'hoja-calculo-ficticia' : null
@@ -124,6 +124,13 @@ test('neutraliza todos los prefijos que Sheets podría interpretar como fórmula
   });
   assert.strictEqual(context.normalizeSheetWriteValue_('Texto ficticio seguro'), 'Texto ficticio seguro');
   assert.strictEqual(context.normalizeSheetWriteValue_(42), 42);
+});
+
+test('normaliza fechas y horas de Sheets según el tipo de columna', () => {
+  const date = vm.runInContext("new Date('2026-08-01T18:00:00.000Z')", context);
+  assert.match(context.normalizeCellValue_(date, 'eventDate'), /^yyyy-MM-dd:/);
+  assert.match(context.normalizeCellValue_(date, 'startTime'), /^HH:mm:/);
+  assert.match(context.normalizeCellValue_(date, 'updatedAt'), /^yyyy-MM-dd'T'HH:mm:ss:/);
 });
 
 test('appendObject aplica el esquema de encabezados y neutraliza fórmulas', () => {

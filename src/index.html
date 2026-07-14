@@ -85,6 +85,8 @@
     .status { display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 9px; font-size: 10px; font-weight: 850; letter-spacing: .04em; }
     .status.CONFIRMADO { color: #9a3412; background: #ffedd5; }
     .status.PAGADO, .status.COMPLETADO { color: #166534; background: #dcfce7; }
+    .status.CALENDARIO { color: #075985; background: #e0f2fe; }
+    .status.ANTERIOR { color: #7c2d12; background: #ffedd5; }
     .status.CANCELADO { color: #991b1b; background: #fee2e2; }
     .status.ERROR { color: #7f1d1d; background: #fecaca; }
     .status.GENERANDO { color: #854d0e; background: #fef9c3; }
@@ -243,8 +245,8 @@
                 <div class="upload-copy">
                   <label for="ineFile">Fotografía frontal de la INE</label>
                   <input type="file" id="ineFile" accept="image/jpeg,image/png,image/webp" aria-describedby="ineHelp ocrStatus">
-                  <p id="ineHelp">Imagen JPG, PNG o WebP, máximo 5 MB. El OCR se ejecuta en este navegador y siempre requiere revisión humana.</p>
-                  <button class="btn btn-dark btn-small" type="button" id="ocrButton">Leer nombre y domicilio</button>
+                  <p id="ineHelp">Imagen JPG, PNG o WebP, máximo 5 MB. Al seleccionarla, el nombre y domicilio se leen automáticamente en este navegador; siempre revísalos.</p>
+                  <button class="btn btn-dark btn-small" type="button" id="ocrButton">Volver a leer nombre y domicilio</button>
                   <div id="ocrStatus" role="status" aria-live="polite" style="margin-top:8px;color:var(--muted);font-size:12px"></div>
                 </div>
               </div>
@@ -290,12 +292,12 @@
         </section>
 
         <section class="view" id="view-agenda">
-          <div class="page-head"><div><h3>Agenda compartida</h3><p>Eventos y horarios actualizados desde los contratos.</p></div></div>
+          <div class="page-head"><div><h3>Agenda compartida</h3><p>Contratos nuevos y eventos existentes de Google Calendar, sin duplicarlos.</p></div><button class="btn btn-primary owner-only" type="button" id="syncAgendaButton">↻ Sincronizar Calendar</button></div>
           <div class="grid agenda-grid" id="agendaGrid"></div>
         </section>
 
         <section class="view" id="view-contracts">
-          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios.</p></div><div class="filters"><div><label class="sr-only" for="contractSearch">Buscar contrato</label><input id="contractSearch" placeholder="Buscar número o cliente"></div><div><label class="sr-only" for="contractStatus">Filtrar por estado</label><select id="contractStatus"><option value="">Todos</option><option>CONFIRMADO</option><option>PAGADO</option><option>CANCELADO</option><option>ERROR</option></select></div></div></div>
+          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios.</p></div><div class="filters"><div><label class="sr-only" for="contractSearch">Buscar contrato</label><input id="contractSearch" placeholder="Buscar número o cliente"></div><div><label class="sr-only" for="contractStatus">Filtrar por estado</label><select id="contractStatus"><option value="">Todos</option><option>CONFIRMADO</option><option>PAGADO</option><option>CANCELADO</option><option>CALENDARIO</option><option>ERROR</option></select></div></div></div>
           <div class="card table-wrap"><table class="data"><thead><tr><th>Contrato</th><th>Evento</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th></th></tr></thead><tbody id="contractsBody"></tbody></table></div>
         </section>
 
@@ -345,8 +347,9 @@
             <div class="card-head"><h4>Importar contratos anteriores</h4></div>
             <div class="card-body form-grid">
               <div class="field full"><label for="historicalImportFile">Archivo de revisión JSON</label><input id="historicalImportFile" type="file" accept="application/json,.json" aria-describedby="historicalImportHelp"></div>
-              <div class="field full"><p id="historicalImportHelp" style="color:var(--muted);margin:0">Uso excepcional: no importes contratos que ya estén en Drive o Calendar porque se crearían copias. El sistema actual comienza en C.2626.</p></div>
-              <div class="field full"><button class="btn btn-dark" type="button" id="importHistoricalButton" style="width:100%">Validar e importar historial</button></div>
+              <div class="field full"><p id="historicalImportHelp" style="color:var(--muted);margin:0">Para contratos que ya están en Drive o Calendar usa “Mostrar en el panel”: solo guarda el índice y no crea copias. El sistema actual comienza en C.2626.</p></div>
+              <div class="field full"><button class="btn btn-primary" type="button" id="indexHistoricalButton" style="width:100%">Mostrar contratos anteriores en el panel (sin duplicar)</button></div>
+              <div class="field full"><button class="btn btn-ghost" type="button" id="importHistoricalButton" style="width:100%">Importar y crear archivos solo si no existen</button></div>
             </div>
           </div>
         </section>
@@ -519,6 +522,8 @@
         system: { configured: false },
         users: [{ email:'propietario@demo.local', role:'PROPIETARIO', active:true }],
         automation: { installed: false, status: 'PENDIENTE', triggerCount: 0, lastRunAt: '', lastSummary: 'Aún no se ejecutan automatizaciones en esta demostración.' },
+        agenda: [],
+        history: [],
         contracts: [
           { id:'demo-1', requestId:'seed-contract-1', contractNumber:'C.2623', version:1, status:'CONFIRMADO', elaborationDate:baseDate, eventDate:firstEventDate, eventDay:dayName(firstEventDate), startTime:'18:00', endTime:'23:00', eventType:'Fiesta infantil ficticia', clientId:'client-1', clientName:'Mariana Ejemplo Navarro', address:'Calle Demostración 123, Col. Modelo', phone:'000 000 0000', total:firstTotal, initialDeposit:firstDeposit, paid:firstDeposit, balance:roundMoney(firstTotal-firstDeposit), overrideReason:'', currentPdfFileId:'', updatedAt:firstUpdated },
           { id:'demo-2', requestId:'seed-contract-2', contractNumber:'C.2624', version:2, status:'PAGADO', elaborationDate:baseDate, eventDate:secondEventDate, eventDay:dayName(secondEventDate), startTime:'19:00', endTime:'00:00', eventType:'Reunión familiar ficticia', clientId:'client-2', clientName:'Carlos Prueba Ortega', address:'Avenida Ejemplo 45, Col. Ensayo', phone:'000 000 0001', total:secondTotal, initialDeposit:secondDeposit, paid:secondTotal, balance:0, overrideReason:'Tarifa ficticia de demostración con centavos', currentPdfFileId:'', updatedAt:secondUpdated }
@@ -715,6 +720,9 @@
         saveMock(db);
         return db.users;
       }
+      if (method === 'syncAgendaNow') {
+        return { synced:db.contracts.length, calendars:1, errors:[] };
+      }
       if (method === 'installAutomations') {
         db.automation = { ...(db.automation || {}), installed:true, status:'ACTIVA', triggerCount:1, installedAt:nowLocalIso(), lastSummary:'Automatizaciones ficticias instaladas en el modo demo.' };
         saveMock(db);
@@ -734,11 +742,36 @@
       throw new Error(`Operación no disponible en demostración: ${method}`);
     }
 
+    function normalizeDateValue(value) {
+      const text = String(value || '').trim();
+      const match = text.match(/^(\d{4}-\d{2}-\d{2})/);
+      return match ? match[1] : text;
+    }
+
+    function normalizeTimeValue(value) {
+      const text = String(value || '').trim();
+      const direct = text.match(/^(?:[01]\d|2[0-3]):[0-5]\d/);
+      if (direct) return direct[0];
+      const timestamp = text.match(/T((?:[01]\d|2[0-3]):[0-5]\d)/);
+      return timestamp ? timestamp[1] : text;
+    }
+
+    function normalizeEventRecord(record) {
+      const normalized = Object.assign({}, record || {});
+      normalized.elaborationDate = normalizeDateValue(normalized.elaborationDate);
+      normalized.eventDate = normalizeDateValue(normalized.eventDate);
+      normalized.startTime = normalizeTimeValue(normalized.startTime);
+      normalized.endTime = normalizeTimeValue(normalized.endTime);
+      return normalized;
+    }
+
     function normalizeBootstrap(data) {
       const normalized = data && typeof data === 'object' ? data : {};
       normalized.user = normalized.user || { email:'—', role:'CONSULTA' };
       normalized.config = normalized.config || { weekdayRate:0, weekendRate:0, eventHours:5, nextContractNumber:'—' };
-      normalized.contracts = Array.isArray(normalized.contracts) ? normalized.contracts : [];
+      normalized.contracts = (Array.isArray(normalized.contracts) ? normalized.contracts : []).map(normalizeEventRecord);
+      normalized.agenda = (Array.isArray(normalized.agenda) ? normalized.agenda : []).map(normalizeEventRecord);
+      normalized.history = (Array.isArray(normalized.history) ? normalized.history : []).map(normalizeEventRecord);
       normalized.clients = Array.isArray(normalized.clients) ? normalized.clients : [];
       normalized.payments = Array.isArray(normalized.payments) ? normalized.payments : [];
       normalized.users = Array.isArray(normalized.users) ? normalized.users : [];
@@ -756,6 +789,70 @@
 
     function statusClass(status) { return String(status || '').toUpperCase().replace(/[^A-Z0-9_-]/g, ''); }
     function operationalContracts() { return state.data.contracts.filter(contract => !NON_OPERATIONAL_STATUSES.has(String(contract.status).toUpperCase())); }
+    function agendaKey(item) {
+      const contractNumber = String(item.contractNumber || '').trim().toUpperCase();
+      const eventDate = String(item.eventDate || '').trim();
+      return contractNumber && eventDate ? `contract:${contractNumber}:${eventDate}` : `event:${item.id || `${item.title || ''}:${eventDate}:${item.startTime || ''}`}`;
+    }
+    function agendaItems() {
+      const combined = new Map();
+      state.data.agenda.forEach(item => combined.set(agendaKey(item), item));
+      state.data.history.forEach(item => {
+        const key = agendaKey(item);
+        combined.set(key, Object.assign({}, combined.get(key) || {}, item, { source:'ARCHIVO_ANTERIOR' }));
+      });
+      state.data.contracts.forEach(contract => combined.set(agendaKey(contract), Object.assign({ source:'CONTRATO' }, contract)));
+      return Array.from(combined.values());
+    }
+    function contractItems() {
+      const combined = new Map();
+      state.data.agenda.filter(item => item.contractNumber).forEach(item => {
+        const key = String(item.contractNumber).trim().toUpperCase();
+        combined.set(key, Object.assign({}, item, {
+          id:`agenda:${item.id || key}`,
+          source:'CALENDARIO',
+          status:String(item.status || '').toUpperCase() === 'CANCELADO' ? 'CANCELADO' : 'CALENDARIO',
+          clientName:item.clientName || 'Sin nombre registrado'
+        }));
+      });
+      state.data.history.forEach(item => {
+        const key = String(item.contractNumber || '').trim().toUpperCase();
+        if (key) combined.set(key, Object.assign({}, combined.get(key) || {}, item, { source:'ARCHIVO_ANTERIOR' }));
+      });
+      state.data.contracts.forEach(item => {
+        const key = String(item.contractNumber || '').trim().toUpperCase();
+        if (key) combined.set(key, Object.assign({}, item, { source:'CONTRATO' }));
+      });
+      return Array.from(combined.values());
+    }
+    function clientItems() {
+      const combined = new Map();
+      const add = client => {
+        const name = String(client.name || client.clientName || '').trim();
+        if (!name || /^sin nombre registrado$/i.test(name) || name.length > 100 || /tipo\s+de\s+evento|saldo\s+pendiente/i.test(name)) return;
+        const key = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
+        const previous = combined.get(key) || {};
+        combined.set(key, Object.assign({}, previous, client, {
+          id:client.id || `historial:${key}`,
+          name,
+          address:client.address || previous.address || '',
+          phone:client.phone || previous.phone || '',
+          historical:Boolean(previous.historical || ['ARCHIVO_ANTERIOR', 'ANTERIOR'].includes(client.source)),
+          updatedAt:client.updatedAt || client.elaborationDate || ''
+        }));
+      };
+      state.data.agenda.forEach(add);
+      state.data.history.forEach(add);
+      state.data.clients.forEach(add);
+      return Array.from(combined.values());
+    }
+    function operationalAgenda() { return agendaItems().filter(item => !NON_OPERATIONAL_STATUSES.has(String(item.status).toUpperCase())); }
+    function agendaName(item) { return item.clientName || item.title || item.contractNumber || 'Evento'; }
+    function agendaBadge(item) {
+      const status = String(item.status || 'CONFIRMADO').toUpperCase();
+      if (status === 'CANCELADO' || item.source === 'CONTRATO') return status;
+      return item.source === 'ARCHIVO_ANTERIOR' ? 'ANTERIOR' : 'CALENDARIO';
+    }
     function compareEventsAscending(a, b) { return `${a.eventDate || ''} ${a.startTime || ''}`.localeCompare(`${b.eventDate || ''} ${b.startTime || ''}`); }
     function compareEventsDescending(a, b) { return compareEventsAscending(b, a) || String(b.contractNumber || '').localeCompare(String(a.contractNumber || '')); }
     function comparePaymentsDescending(a, b) { return `${b.createdAt || b.date || ''} ${b.id || ''}`.localeCompare(`${a.createdAt || a.date || ''} ${a.id || ''}`); }
@@ -831,8 +928,8 @@
     }
 
     function renderDashboard() {
-      const contracts = operationalContracts();
-      const future = contracts.filter(contract => contract.eventDate >= today()).sort(compareEventsAscending);
+      const contracts = contractItems().filter(contract => !NON_OPERATIONAL_STATUSES.has(String(contract.status).toUpperCase()));
+      const future = operationalAgenda().filter(event => event.eventDate >= today()).sort(compareEventsAscending);
       const paid = contracts.reduce((sum, contract) => sum + Number(contract.paid || 0), 0);
       const balance = contracts.reduce((sum, contract) => sum + Number(contract.balance || 0), 0);
       const totals = contracts.reduce((sum, contract) => sum + Number(contract.total || 0), 0);
@@ -840,33 +937,44 @@
       document.getElementById('kpiContracts').textContent = contracts.length;
       document.getElementById('kpiPaid').textContent = money(paid);
       document.getElementById('kpiBalance').textContent = money(balance);
-      document.getElementById('upcomingList').innerHTML = future.slice(0, 5).map(contract => {
-        const date = dateParts(contract.eventDate);
-        const status = String(contract.status || '');
-        return `<div class="event-item"><div class="date-box"><strong>${date.day}</strong><span>${date.month}</span></div><div><h5>${escapeHtml(contract.clientName)}</h5><p>${escapeHtml(contract.eventType)} · ${escapeHtml(contract.startTime)}–${escapeHtml(contract.endTime)}</p></div><span class="status ${statusClass(status)}">${escapeHtml(status)}</span></div>`;
+      document.getElementById('upcomingList').innerHTML = future.slice(0, 5).map(event => {
+        const date = dateParts(event.eventDate);
+        const badge = agendaBadge(event);
+        return `<div class="event-item"><div class="date-box"><strong>${date.day}</strong><span>${date.month}</span></div><div><h5>${escapeHtml(agendaName(event))}</h5><p>${escapeHtml(event.eventType || 'Evento')} · ${escapeHtml(event.startTime)}–${escapeHtml(event.endTime)}</p></div><span class="status ${statusClass(badge)}">${escapeHtml(badge)}</span></div>`;
       }).join('') || '<div class="empty">No hay eventos próximos.</div>';
       const percentage = totals > 0 ? Math.max(0, Math.min(100, Math.round(paid / totals * 100))) : 0;
       document.getElementById('paymentSummary').innerHTML = `<div class="money-row"><span>Contratado</span><strong>${money(totals)}</strong></div><div class="money-row"><span>Pagado</span><strong style="color:var(--green)">${money(paid)}</strong></div><div class="money-row"><span>Pendiente</span><strong style="color:var(--red)">${money(balance)}</strong></div><div style="height:9px;background:#f1f1ef;border-radius:99px;overflow:hidden;margin-top:18px" role="progressbar" aria-label="Porcentaje cobrado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percentage}"><div style="height:100%;width:${percentage}%;background:linear-gradient(90deg,var(--orange),var(--green))"></div></div>`;
     }
 
     function renderAgenda() {
-      const sorted = [...state.data.contracts].sort(compareEventsAscending);
-      document.getElementById('agendaGrid').innerHTML = sorted.map(contract => {
-        const status = String(contract.status || '');
-        return `<article class="card agenda-card ${status === 'CANCELADO' ? 'cancelled' : ''}"><div class="agenda-date">${escapeHtml(contract.eventDay || dayName(contract.eventDate))} · ${escapeHtml(contract.eventDate)}</div><h4>${escapeHtml(contract.contractNumber)} — ${escapeHtml(contract.clientName)}</h4><p><strong>${escapeHtml(contract.startTime)} a ${escapeHtml(contract.endTime)}</strong> · ${escapeHtml(contract.eventType)}</p><p>Pagado ${money(contract.paid)} · Saldo ${money(contract.balance)}</p><span class="status ${statusClass(status)}">${escapeHtml(status)}</span></article>`;
+      const sorted = agendaItems().sort(compareEventsAscending);
+      document.getElementById('agendaGrid').innerHTML = sorted.map(event => {
+        const status = String(event.status || 'CONFIRMADO').toUpperCase();
+        const badge = agendaBadge(event);
+        const heading = event.contractNumber ? `${event.contractNumber} — ${agendaName(event)}` : agendaName(event);
+        const detail = event.source === 'CONTRATO'
+          ? `Pagado ${money(event.paid)} · Saldo ${money(event.balance)}`
+          : `Google Calendar${event.calendarName ? ` · ${event.calendarName}` : ''}${event.location ? ` · ${event.location}` : ''}`;
+        return `<article class="card agenda-card ${status === 'CANCELADO' ? 'cancelled' : ''}"><div class="agenda-date">${escapeHtml(event.eventDay || dayName(event.eventDate))} · ${escapeHtml(event.eventDate)}</div><h4>${escapeHtml(heading)}</h4><p><strong>${escapeHtml(event.startTime)} a ${escapeHtml(event.endTime)}</strong> · ${escapeHtml(event.eventType || 'Evento')}</p><p>${escapeHtml(detail)}</p><span class="status ${statusClass(badge)}">${escapeHtml(badge)}</span></article>`;
       }).join('') || '<div class="empty">No hay eventos.</div>';
     }
 
     function renderContracts() {
       const query = document.getElementById('contractSearch').value.trim().toLowerCase();
       const statusFilter = document.getElementById('contractStatus').value;
-      const rows = [...state.data.contracts]
+      const rows = contractItems()
         .filter(contract => (!query || `${contract.contractNumber} ${contract.clientName}`.toLowerCase().includes(query)) && (!statusFilter || contract.status === statusFilter))
         .sort(compareEventsDescending);
       document.getElementById('contractsBody').innerHTML = rows.map(contract => {
         const status = String(contract.status || '');
         const pdfLink = driveFileLink(contract.currentPdfFileId, 'PDF');
-        return `<tr><td><strong>${escapeHtml(contract.contractNumber)}</strong><br><small>Versión ${escapeHtml(contract.version)}</small></td><td>${escapeHtml(contract.eventDate)}<br><small>${escapeHtml(contract.startTime)}–${escapeHtml(contract.endTime)}</small></td><td>${escapeHtml(contract.clientName)}</td><td>${money(contract.total)}</td><td>${money(contract.paid)}</td><td><strong>${money(contract.balance)}</strong></td><td><span class="status ${statusClass(status)}">${escapeHtml(status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-small" type="button" data-contract-id="${escapeHtml(contract.id)}">Ver</button>${pdfLink}</div></td></tr>`;
+        const canOpen = contract.source === 'CONTRATO';
+        const sourceLabel = canOpen ? `Versión ${contract.version || 1}` : (contract.source === 'ARCHIVO_ANTERIOR' ? 'Contrato anterior' : 'Registrado en Calendar');
+        const action = canOpen
+          ? `<button class="btn btn-ghost btn-small" type="button" data-contract-id="${escapeHtml(contract.id)}">Ver</button>${pdfLink}`
+          : `<span style="color:var(--muted);font-size:12px">${contract.source === 'ARCHIVO_ANTERIOR' ? 'Indexado' : 'Calendar'}</span>`;
+        const amount = value => value === '' || value === null || value === undefined ? '—' : money(value);
+        return `<tr><td><strong>${escapeHtml(contract.contractNumber)}</strong><br><small>${escapeHtml(sourceLabel)}</small></td><td>${escapeHtml(contract.eventDate || '—')}<br><small>${escapeHtml(contract.startTime || '—')}–${escapeHtml(contract.endTime || '—')}</small></td><td>${escapeHtml(contract.clientName || 'Sin nombre registrado')}</td><td>${amount(contract.total)}</td><td>${amount(contract.paid)}</td><td><strong>${amount(contract.balance)}</strong></td><td><span class="status ${statusClass(status)}">${escapeHtml(status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap">${action}</div></td></tr>`;
       }).join('') || '<tr><td colspan="8" class="empty">No se encontraron contratos.</td></tr>';
     }
 
@@ -888,13 +996,14 @@
 
     function renderClients() {
       const query = document.getElementById('clientSearch').value.trim().toLowerCase();
-      const clients = [...state.data.clients]
+      const clients = clientItems()
         .filter(client => !query || `${client.name} ${client.phone}`.toLowerCase().includes(query))
         .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es'));
       document.getElementById('clientsBody').innerHTML = clients.map(client => {
         let ineStatus = '<span style="color:var(--muted)">No guardada</span>';
         if (state.isDemo) ineStatus = client.ineSimulated ? '<span class="status PENDIENTE">SIMULADA · NO PERSISTIDA</span>' : '<span style="color:var(--muted)">No persistida</span>';
         else if (client.hasIne) ineStatus = '<span class="status CONFIRMADO">RESGUARDADA</span>';
+        else if (client.historical) ineStatus = '<span style="color:var(--muted)">Contrato anterior</span>';
         return `<tr><td><strong>${escapeHtml(client.name)}</strong></td><td>${escapeHtml(client.address)}</td><td>${escapeHtml(client.phone)}</td><td>${ineStatus}</td><td>${escapeHtml(String(client.updatedAt || '').slice(0, 10))}</td></tr>`;
       }).join('') || '<tr><td colspan="5" class="empty">No se encontraron clientes.</td></tr>';
     }
@@ -1144,6 +1253,18 @@
     document.getElementById('dialogClose').onclick = document.getElementById('closeContractButton').onclick = () => document.getElementById('contractDialog').close();
     document.getElementById('contractDialog').addEventListener('close', () => { state.selectedContract = null; state.formDirty.edit = false; });
     document.getElementById('refreshButton').addEventListener('click', () => loadLatest({ message:'Datos actualizados. Los formularios abiertos se conservaron.', showBusy:true }));
+    document.getElementById('syncAgendaButton').addEventListener('click', async () => {
+      showLoading('Sincronizando eventos existentes de Google Calendar…');
+      try {
+        const summary = await callServer('syncAgendaNow');
+        await loadLatest();
+        toast(`Agenda sincronizada: ${Number(summary?.synced || 0)} eventos encontrados.`);
+      } catch (error) {
+        toast(error.message || 'No se pudo sincronizar la agenda.', true);
+      } finally {
+        hideLoading();
+      }
+    });
 
     const paymentForm = document.getElementById('paymentForm');
     const contractForm = document.getElementById('contractForm');
@@ -1157,40 +1278,20 @@
     setFormDirtyTracking('accessForm', 'access');
     setFormDirtyTracking('editForm', 'edit');
 
-    document.getElementById('ineFile').addEventListener('change', async event => {
-      const file = event.target.files?.[0];
-      state.ineDataUrl = '';
-      clearOcrState();
-      setInePreview();
-      if (!file) return;
-      showLoading('Preparando la imagen de forma privada…');
-      try {
-        state.ineDataUrl = await fileToCompressedDataUrl(file);
-        setInePreview(state.ineDataUrl);
-        document.getElementById('ocrStatus').textContent = 'Imagen lista para lectura local.';
-      } catch (error) {
-        event.target.value = '';
-        state.ineDataUrl = '';
-        setInePreview();
-        document.getElementById('ocrStatus').textContent = error.message;
-        toast(error.message, true);
-      } finally {
-        hideLoading();
-      }
-    });
-
-    document.getElementById('ocrButton').addEventListener('click', async () => {
+    async function runIneOcr() {
       const ocrStatus = document.getElementById('ocrStatus');
       clearOcrState();
       if (!state.ineDataUrl) {
         ocrStatus.textContent = 'Selecciona primero una fotografía de la INE.';
-        return toast('Selecciona primero una fotografía de la INE.', true);
+        toast('Selecciona primero una fotografía de la INE.', true);
+        return false;
       }
       if (!window.Tesseract?.recognize) {
         ocrStatus.textContent = 'OCR no disponible; captura los datos manualmente.';
-        return toast('El OCR no pudo cargarse. Captura los datos manualmente.', true);
+        toast('El OCR no pudo cargarse. Captura los datos manualmente.', true);
+        return false;
       }
-      showLoading('Leyendo la identificación en este navegador…');
+      showLoading('Leyendo automáticamente la identificación…');
       ocrStatus.textContent = 'Iniciando OCR local…';
       try {
         const result = await window.Tesseract.recognize(state.ineDataUrl, 'spa', {
@@ -1209,17 +1310,44 @@
           ocrStatus.textContent = `Lectura parcial: falta ${missing}. Revísalo y captúralo manualmente.`;
           toast(`OCR parcial: revisa y completa el ${missing}.`, true);
         } else {
-          ocrStatus.textContent = 'Nombre y domicilio detectados. Revisa y corrige ambos campos.';
-          toast('Lectura terminada. Confirma y corrige los datos.');
+          ocrStatus.textContent = 'Nombre y domicilio detectados automáticamente. Revisa y corrige ambos campos.';
+          toast('Lectura automática terminada. Confirma los datos.');
         }
         state.formDirty.contract = true;
+        return Boolean(fields.name || fields.address);
       } catch (error) {
         ocrStatus.textContent = `No se pudo completar el OCR: ${error.message}`;
         toast(`No se pudo leer: ${error.message}`, true);
+        return false;
+      } finally {
+        hideLoading();
+      }
+    }
+
+    document.getElementById('ineFile').addEventListener('change', async event => {
+      const file = event.target.files?.[0];
+      state.ineDataUrl = '';
+      clearOcrState();
+      setInePreview();
+      if (!file) return;
+      showLoading('Preparando la imagen de forma privada…');
+      try {
+        state.ineDataUrl = await fileToCompressedDataUrl(file);
+        setInePreview(state.ineDataUrl);
+        document.getElementById('ocrStatus').textContent = 'Imagen lista. Iniciando lectura automática…';
+        await runIneOcr();
+      } catch (error) {
+        event.target.value = '';
+        state.ineDataUrl = '';
+        setInePreview();
+        document.getElementById('ocrStatus').textContent = error.message;
+        toast(error.message, true);
       } finally {
         hideLoading();
       }
     });
+
+    document.getElementById('ocrButton').addEventListener('click', runIneOcr);
 
     contractForm.addEventListener('reset', () => {
       clearPendingRequestId('contract');
@@ -1381,20 +1509,43 @@
       }
     });
 
-    document.getElementById('importHistoricalButton').addEventListener('click', async () => {
+    async function readHistoricalReviewFile() {
       if (state.isDemo) return toast('La importación histórica solo está disponible después de conectar Google.', true);
       const file = document.getElementById('historicalImportFile').files[0];
       if (!file) return toast('Selecciona el archivo de revisión histórica.', true);
-      let records;
       try {
         const parsed = JSON.parse(await file.text());
         const candidates = Array.isArray(parsed) ? parsed : parsed.contracts;
         if (!Array.isArray(candidates)) throw new Error('El archivo no contiene una lista de contratos.');
-        records = candidates.filter(record => record && record.readyForImport !== false && record.recordType !== 'next-contract-draft');
+        const records = candidates.filter(record => record && record.readyForImport !== false && record.recordType !== 'next-contract-draft');
         if (!records.length) throw new Error('No hay contratos aprobados para importar.');
+        return records;
       } catch (error) {
-        return toast(`No se pudo leer el archivo: ${error.message}`, true);
+        toast(`No se pudo leer el archivo: ${error.message}`, true);
+        return null;
       }
+    }
+
+    document.getElementById('indexHistoricalButton').addEventListener('click', async () => {
+      const records = await readHistoricalReviewFile();
+      if (!records) return;
+      if (!window.confirm(`¿Mostrar ${records.length} contratos anteriores en el panel sin crear PDFs, carpetas ni eventos?`)) return;
+      showLoading(`Indexando ${records.length} contratos existentes sin duplicarlos…`);
+      try {
+        const summary = await callServer('indexHistoricalContracts', { records });
+        const message = `Historial listo: ${Number(summary.indexed || 0)} agregados, ${Number(summary.updated || 0)} actualizados y ${Number(summary.errors || 0)} errores.`;
+        document.getElementById('historicalImportFile').value = '';
+        await loadLatest({ message });
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        hideLoading();
+      }
+    });
+
+    document.getElementById('importHistoricalButton').addEventListener('click', async () => {
+      const records = await readHistoricalReviewFile();
+      if (!records) return;
       if (!window.confirm(`¿Importar ${records.length} contratos anteriores y crear sus eventos?`)) return;
       showLoading(`Importando ${records.length} contratos anteriores…`);
       try {
