@@ -18,11 +18,14 @@
 
 1. Crear un proyecto de Google Apps Script en la cuenta del propietario.
 2. Copiar `clasp.example.json` como `.clasp.json`, colocar el ID privado del proyecto y cargar el contenido de `src/`.
-3. Ejecutar `setupSystem(ownerEmail, employeeEmail)` una vez.
+3. Ejecutar `setupSystem_(ownerEmail, employeeEmail)` una vez desde el editor de Apps Script. El guion bajo final evita que esta instalación pueda invocarse desde el navegador.
 4. Revisar los recursos creados antes de compartirlos.
-5. Compartir la carpeta de contratos y el calendario con el empleado como lector.
-6. No compartir la carpeta de identificaciones privadas.
-7. Implementar la aplicación web para que se ejecute como el usuario que accede.
-8. Probar primero con los datos ficticios de `samples/`.
+5. Abrir el panel como propietario, entrar a **Automatizaciones** e instalar la conciliación diaria.
+6. Compartir la carpeta de contratos y el calendario con el empleado como lector.
+7. No compartir la carpeta de identificaciones privadas.
+8. Implementar la aplicación web para que se ejecute como el usuario que accede.
+9. Probar primero con los datos ficticios de `samples/`.
+
+La automatización se ejecuta diariamente alrededor de las 08:00 en `America/Hermosillo`. Repara eventos faltantes o desactualizados, conserva cancelaciones y reporta contratos con saldo cuyo evento ocurre en siete días o menos. Puede ejecutarse manualmente desde el mismo panel para verificarla.
 
 La aplicación rechaza correos no incluidos en `Usuarios`. El empleado no recibe IDs, enlaces ni archivos de la INE desde las respuestas del servidor.
