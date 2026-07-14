@@ -8,7 +8,7 @@ function clone(value) {
 
 function newState() {
   return {
-    sheets: { Contratos: [], Pagos: [], Clientes: [] },
+    sheets: { Contratos: [], Pagos: [], Clientes: [], Historial: [] },
     lockWaits: [],
     lockReleases: 0,
     schemaChecks: 0,
@@ -20,6 +20,7 @@ function newState() {
     calendarUpdates: [],
     calendarCancellations: [],
     folderReads: [],
+    folders: {},
     folderCreations: 0,
     clientUpserts: 0,
     throwOnAudit: false,
@@ -45,6 +46,35 @@ const lock = {
   }
 };
 
+function folderFor(folderId) {
+  const id = String(folderId);
+  if (!state.folders[id]) state.folders[id] = { id, children: {} };
+  const folder = state.folders[id];
+  return {
+    id: folder.id,
+    getId: () => folder.id,
+    getFoldersByName(name) {
+      const childId = folder.children[String(name)] || '';
+      let consumed = false;
+      return {
+        hasNext: () => Boolean(childId) && !consumed,
+        next: () => {
+          if (!childId || consumed) throw new Error('No hay más carpetas ficticias.');
+          consumed = true;
+          return folderFor(childId);
+        }
+      };
+    },
+    createFolder(name) {
+      const normalizedName = String(name);
+      const childId = `${folder.id}/${normalizedName}`;
+      folder.children[normalizedName] = childId;
+      if (!state.folders[childId]) state.folders[childId] = { id: childId, children: {} };
+      return folderFor(childId);
+    }
+  };
+}
+
 const context = vm.createContext({
   console,
   APP_CONFIG: {
@@ -62,8 +92,13 @@ const context = vm.createContext({
   DriveApp: {
     getFolderById(folderId) {
       state.folderReads.push(folderId);
-      return { id: folderId, getId: () => folderId };
+      return folderFor(folderId);
     }
+  },
+  PropertiesService: {
+    getScriptProperties: () => ({
+      getProperty: key => key === 'CONTRACTS_FOLDER_ID' ? 'carpeta-raiz-contratos-ficticia' : ''
+    })
   },
   requireOwner_: () => ({
     email: 'propietaria.ficticia@example.com',
@@ -158,6 +193,31 @@ function seedContract(overrides = {}) {
   };
   Object.assign(contract, overrides);
   state.sheets.Contratos.push(contract);
+  return contract;
+}
+
+function seedHistoricalContract(overrides = {}) {
+  const contract = {
+    id: 'historial:C.2623',
+    contractNumber: 'C.2623',
+    status: 'CONFIRMADO',
+    total: 3500,
+    paid: 1750,
+    balance: 1750,
+    elaborationDate: '2026-07-01',
+    eventDate: '2026-07-17',
+    eventDay: 'Viernes',
+    startTime: '19:00',
+    endTime: '00:00',
+    eventType: 'Evento histórico ficticio',
+    clientName: 'Cliente Histórico Ficticio',
+    address: 'Domicilio histórico ficticio 23',
+    phone: '0000002623',
+    source: 'ARCHIVO_ANTERIOR',
+    updatedAt: '2026-07-01T10:00:00'
+  };
+  Object.assign(contract, overrides);
+  state.sheets.Historial.push(contract);
   return contract;
 }
 
@@ -267,6 +327,78 @@ test('addPayment bloquea, redondea, persiste requestId y no duplica un reintento
   assert.strictEqual(state.audits.length, auditCount);
   assert.deepStrictEqual(state.lockWaits, [30000, 30000]);
   assert.strictEqual(state.lockReleases, 2);
+});
+
+test('addHistoricalPayment registra C.2623, crea un recibo controlado y no duplica un reintento', () => {
+  seedHistoricalContract();
+  const payload = {
+    requestId: 'solicitud-pago-historico-2623',
+    contractId: 'historial:C.2623',
+    date: '2026-07-13',
+    amount: 1750,
+    method: 'Transferencia',
+    note: 'Liquidación de contrato anterior'
+  };
+
+  const first = clone(context.addHistoricalPayment(payload));
+  assert.strictEqual(first.payment.status, 'COMPLETADO');
+  assert.strictEqual(first.payment.contractId, 'historial:C.2623');
+  assert.strictEqual(first.contract.status, 'PAGADO');
+  assert.strictEqual(first.contract.paid, 3500);
+  assert.strictEqual(first.contract.balance, 0);
+  assert.strictEqual(state.sheets.Historial[0].status, 'PAGADO');
+  assert.strictEqual(state.sheets.Pagos.length, 1);
+  assert.strictEqual(state.receiptCalls.length, 1);
+  assert.match(state.receiptCalls[0].folderId, /Recibos de contratos anteriores/);
+  assert.match(first.receiptUrl, /recibo-pdf-/);
+
+  const updateCount = state.updates.length;
+  const second = clone(context.addHistoricalPayment(payload));
+  assert.strictEqual(second.payment.id, first.payment.id);
+  assert.strictEqual(second.contract.balance, 0);
+  assert.strictEqual(state.sheets.Pagos.length, 1);
+  assert.strictEqual(state.receiptCalls.length, 1);
+  assert.strictEqual(state.updates.length, updateCount);
+});
+
+test('addHistoricalPayment puede recibir el número histórico y rechaza un pago que excede el saldo', () => {
+  seedHistoricalContract({ paid: 1700, balance: 1800 });
+
+  assert.throws(() => context.addHistoricalPayment({
+    requestId: 'solicitud-pago-historico-exceso',
+    contractNumber: 'C.2623',
+    date: '2026-07-13',
+    amount: 1800.01
+  }), /exceder el saldo/);
+
+  assert.strictEqual(state.sheets.Pagos.length, 0);
+  assert.strictEqual(state.sheets.Historial[0].paid, 1700);
+  assert.strictEqual(state.sheets.Historial[0].balance, 1800);
+});
+
+test('addHistoricalPayment conserva el histórico si falla el recibo y permite reparar el mismo intento', () => {
+  seedHistoricalContract();
+  const payload = {
+    requestId: 'solicitud-pago-historico-reintento',
+    contractId: 'historial:C.2623',
+    date: '2026-07-13',
+    amount: 500
+  };
+  state.throwOnReceipt = true;
+
+  assert.throws(() => context.addHistoricalPayment(payload), /Fallo ficticio al generar recibo/);
+  assert.strictEqual(state.sheets.Pagos.length, 1);
+  assert.strictEqual(state.sheets.Pagos[0].status, 'ERROR');
+  assert.strictEqual(state.sheets.Historial[0].paid, 1750);
+  assert.strictEqual(state.sheets.Historial[0].balance, 1750);
+
+  state.throwOnReceipt = false;
+  const repaired = clone(context.addHistoricalPayment(payload));
+  assert.strictEqual(repaired.payment.status, 'COMPLETADO');
+  assert.strictEqual(state.sheets.Pagos.length, 1);
+  assert.strictEqual(state.sheets.Historial[0].paid, 2250);
+  assert.strictEqual(state.sheets.Historial[0].balance, 1250);
+  assert.strictEqual(state.receiptCalls.length, 2);
 });
 
 test('addPayment rechaza un monto superior al saldo y libera el bloqueo', () => {

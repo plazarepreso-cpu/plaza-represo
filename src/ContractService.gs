@@ -33,6 +33,9 @@ function getBootstrapData() {
     files: listContractFileLinks_(),
     clients,
     payments,
+    branding: {
+      logoDataUrl: getPlazaRepresoBrandDataUrl_()
+    },
     system: getSystemInfo_(),
     automation
   };
@@ -351,6 +354,164 @@ function addPayment(payload) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Registra un pago sobre un contrato que fue indexado desde archivos anteriores.
+ * Estos contratos no tienen carpeta propia administrada por el sistema, por eso
+ * sus recibos se guardan en una subcarpeta controlada dentro de la raíz oficial.
+ * No crea ni modifica un evento de Calendar ni vuelve a generar el contrato.
+ */
+function addHistoricalPayment(payload) {
+  const user = requireOwner_();
+  const data = payload || {};
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  let payment = null;
+  let financialApplied = false;
+  try {
+    ensureSchema_();
+    const requestId = String(data.requestId || Utilities.getUuid()).trim();
+    payment = findObject_('Pagos', 'requestId', requestId);
+    const historical = findHistoricalContractForPayment_(data, payment);
+    if (!historical) throw new Error('No se encontró el contrato histórico. Actualiza el panel e inténtalo de nuevo.');
+
+    if (payment) {
+      if (String(payment.contractId) !== String(historical.id) ||
+          roundMoney_(payment.amount) !== roundMoney_(data.amount === undefined ? payment.amount : data.amount)) {
+        throw new Error('El identificador de esta solicitud ya pertenece a otro pago.');
+      }
+      if (String(payment.status) === 'COMPLETADO') {
+        return { contract: historical, payment, receiptUrl: receiptUrlForPayment_(payment) };
+      }
+    } else {
+      const pending = listObjects_('Pagos').find(item =>
+        String(item.contractId) === String(historical.id) && String(item.status) === 'GENERANDO'
+      );
+      if (pending) throw new Error('Hay un pago anterior en proceso. Actualiza el panel antes de registrar otro.');
+      const validation = validatePaymentPayload_(data, historical);
+      payment = {
+        id: Utilities.getUuid(),
+        requestId,
+        status: 'GENERANDO',
+        contractId: historical.id,
+        contractNumber: historical.contractNumber,
+        date: validation.date,
+        amount: validation.amount,
+        method: String(data.method || 'No indicado').trim(),
+        note: String(data.note || 'Abono al contrato anterior').trim(),
+        receiptFileId: '',
+        createdBy: user.email,
+        createdAt: nowIso_(),
+        newPaid: roundMoney_(roundMoney_(historical.paid) + validation.amount),
+        newBalance: roundMoney_(roundMoney_(historical.balance) - validation.amount),
+        errorMessage: ''
+      };
+      appendObject_('Pagos', payment);
+    }
+
+    financialApplied = roundMoney_(historical.paid) === roundMoney_(payment.newPaid) &&
+      roundMoney_(historical.balance) === roundMoney_(payment.newBalance);
+    if (!financialApplied) {
+      const validation = validatePaymentPayload_({ date: payment.date, amount: payment.amount }, historical);
+      payment.amount = validation.amount;
+      payment.newPaid = roundMoney_(roundMoney_(historical.paid) + validation.amount);
+      payment.newBalance = roundMoney_(roundMoney_(historical.balance) - validation.amount);
+      payment = updateObject_('Pagos', 'id', payment.id, {
+        status: 'GENERANDO',
+        amount: payment.amount,
+        newPaid: payment.newPaid,
+        newBalance: payment.newBalance,
+        errorMessage: ''
+      });
+    }
+
+    let generatedReceipt = null;
+    if (!payment.receiptFileId) {
+      const folder = createHistoricalReceiptFolder_(historical);
+      generatedReceipt = generateReceiptPdf_(historical, payment, folder);
+      payment = updateObject_('Pagos', 'id', payment.id, {
+        receiptFileId: generatedReceipt.pdfFileId,
+        status: 'GENERANDO',
+        errorMessage: ''
+      });
+    }
+
+    let saved = historical;
+    if (!financialApplied) {
+      saved = updateObject_('Historial', 'id', historical.id, Object.assign({}, historical, {
+        paid: payment.newPaid,
+        balance: payment.newBalance,
+        status: payment.newBalance === 0 ? 'PAGADO' : 'CONFIRMADO',
+        updatedAt: nowIso_()
+      }));
+      financialApplied = true;
+    }
+
+    payment = updateObject_('Pagos', 'id', payment.id, {
+      status: 'COMPLETADO',
+      errorMessage: ''
+    });
+    try {
+      audit_('REGISTRAR_PAGO_HISTORICO', 'Pago', payment.id, {
+        contractId: historical.id,
+        contractNumber: historical.contractNumber,
+        amount: payment.amount
+      });
+    } catch (ignored) {}
+    return {
+      contract: saved,
+      payment,
+      receiptUrl: receiptUrlForPayment_(payment, generatedReceipt)
+    };
+  } catch (error) {
+    if (payment && !financialApplied) {
+      try {
+        updateObject_('Pagos', 'id', payment.id, {
+          status: 'ERROR',
+          errorMessage: String(error.message || error).slice(0, 500)
+        });
+      } catch (ignored) {}
+    }
+    throw error;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function findHistoricalContractForPayment_(payload, payment) {
+  const data = payload || {};
+  const identifiers = [
+    payment && payment.contractId,
+    data.contractId,
+    data.contractNumber
+  ].map(value => String(value || '').trim()).filter(Boolean);
+
+  for (let index = 0; index < identifiers.length; index += 1) {
+    const identifier = identifiers[index];
+    const byId = findObject_('Historial', 'id', identifier);
+    if (byId) return byId;
+    const byNumber = findObject_('Historial', 'contractNumber', identifier.toUpperCase());
+    if (byNumber) return byNumber;
+  }
+  return null;
+}
+
+function createHistoricalReceiptFolder_(historical) {
+  const rootId = String(
+    PropertiesService.getScriptProperties().getProperty('CONTRACTS_FOLDER_ID') || ''
+  ).trim();
+  if (!rootId) throw new Error('La carpeta oficial de contratos no está configurada.');
+  const root = DriveApp.getFolderById(rootId);
+  const receipts = getOrCreateChildFolder_(root, 'Recibos de contratos anteriores');
+  const name = `${safeFileName_(historical.contractNumber)} - ${safeFileName_(historical.clientName)}`.trim();
+  return getOrCreateChildFolder_(receipts, name || 'Contrato histórico');
+}
+
+function receiptUrlForPayment_(payment, generatedReceipt) {
+  if (generatedReceipt && generatedReceipt.pdfUrl) return generatedReceipt.pdfUrl;
+  const fileId = String(payment && payment.receiptFileId || '').trim();
+  return fileId ? `https://drive.google.com/open?id=${encodeURIComponent(fileId)}` : '';
 }
 
 function cancelContract(payload) {

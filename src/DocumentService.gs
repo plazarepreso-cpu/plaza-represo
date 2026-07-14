@@ -88,21 +88,32 @@ function appendBrandHeader_(body, rightLabel, rightValue) {
   table.setColumnWidth(0, 400).setColumnWidth(1, 156);
 
   const brandCell = table.getCell(0, 0);
-  brandCell.setBackgroundColor(DOCUMENT_THEME.ink)
-    .setPaddingTop(7).setPaddingBottom(7).setPaddingLeft(14).setPaddingRight(10)
+  brandCell.setBackgroundColor('#000000')
+    .setPaddingTop(3).setPaddingBottom(3).setPaddingLeft(5).setPaddingRight(5)
     .setVerticalAlignment(DocumentApp.VerticalAlignment.CENTER);
-  const plaza = brandCell.getChild(0).asParagraph();
-  plaza.setText('PLAZA');
-  styleText_(plaza, {
-    fontFamily: 'Arial', fontSize: 8, bold: true, color: DOCUMENT_THEME.white,
-    spacingBefore: 0, spacingAfter: 0
-  });
-  const brand = brandCell.appendParagraph('REPRESO  EVENTOS');
-  styleText_(brand, {
-    fontFamily: 'Arial', fontSize: 21, bold: true, color: DOCUMENT_THEME.gold,
-    spacingBefore: 0, spacingAfter: 0
-  });
-  styleFragments_(brand, [{ text: 'EVENTOS', fontSize: 8, color: DOCUMENT_THEME.white }]);
+  const originalLogo = getPlazaRepresoBrandBlob_();
+  if (originalLogo) {
+    brandCell.clear();
+    const logoParagraph = brandCell.appendParagraph('');
+    logoParagraph.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    logoParagraph.setSpacingBefore(0).setSpacingAfter(0);
+    const logo = logoParagraph.appendInlineImage(originalLogo);
+    logo.setWidth(352).setHeight(65);
+  } else {
+    // Mantiene el documento imprimible si un día se mueve el archivo de marca.
+    const plaza = brandCell.getChild(0).asParagraph();
+    plaza.setText('PLAZA');
+    styleText_(plaza, {
+      fontFamily: 'Arial', fontSize: 8, bold: true, color: DOCUMENT_THEME.white,
+      spacingBefore: 0, spacingAfter: 0
+    });
+    const brand = brandCell.appendParagraph('REPRESO  EVENTOS');
+    styleText_(brand, {
+      fontFamily: 'Arial', fontSize: 21, bold: true, color: DOCUMENT_THEME.gold,
+      spacingBefore: 0, spacingAfter: 0
+    });
+    styleFragments_(brand, [{ text: 'EVENTOS', fontSize: 8, color: DOCUMENT_THEME.white }]);
+  }
 
   const badgeCell = table.getCell(0, 1);
   badgeCell.setBackgroundColor(DOCUMENT_THEME.inkSoft)

@@ -14,7 +14,6 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph
 
@@ -23,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUTS = ROOT / "outputs"
 SAMPLES = ROOT / "samples" / "contratos-ficticios.json"
 CLAUSES_FILE = ROOT / "templates" / "CLAUSULAS.md"
+BRAND_LOGO = ROOT / "assets" / "plaza-represo-logo-original.jpg"
 
 INK = HexColor("#161616")
 INK_SOFT = HexColor("#2B2B2B")
@@ -96,7 +96,7 @@ def draw_paragraph(pdf, text: str, x: float, top: float, width: float, style) ->
 def draw_brand_header(pdf, right_label: str, right_value: str) -> None:
     x, y, width, height = 30, 708, 552, 62
     badge_width = 138
-    pdf.setFillColor(INK)
+    pdf.setFillColor(HexColor("#000000"))
     pdf.roundRect(x, y, width, height, 7, stroke=0, fill=1)
     pdf.setStrokeColor(GOLD)
     pdf.setLineWidth(1.5)
@@ -104,16 +104,18 @@ def draw_brand_header(pdf, right_label: str, right_value: str) -> None:
     pdf.setLineWidth(1)
     pdf.line(x + width - badge_width, y + 8, x + width - badge_width, y + height - 8)
 
-    pdf.setFillColor(WHITE)
-    pdf.setFont("Helvetica-Bold", 8)
-    pdf.drawString(x + 16, y + 43, "PLAZA")
-    pdf.setFillColor(GOLD)
-    pdf.setFont("Helvetica-Bold", 25)
-    pdf.drawString(x + 16, y + 17, "REPRESO")
-    brand_width = stringWidth("REPRESO", "Helvetica-Bold", 25)
-    pdf.setFillColor(WHITE)
-    pdf.setFont("Helvetica-Bold", 8)
-    pdf.drawString(x + 24 + brand_width, y + 21, "EVENTOS")
+    if BRAND_LOGO.exists():
+        pdf.drawImage(
+            str(BRAND_LOGO), x + 3, y + 3, width=width - badge_width - 8, height=height - 6,
+            preserveAspectRatio=True, anchor="c", mask="auto"
+        )
+    else:
+        pdf.setFillColor(WHITE)
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.drawString(x + 16, y + 43, "PLAZA")
+        pdf.setFillColor(GOLD)
+        pdf.setFont("Helvetica-Bold", 25)
+        pdf.drawString(x + 16, y + 17, "REPRESO")
 
     center = x + width - badge_width / 2
     pdf.setFillColor(WHITE)
