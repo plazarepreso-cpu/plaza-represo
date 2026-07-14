@@ -950,9 +950,10 @@
         return;
       }
       // Respaldo para navegadores que bloquean ventanas emergentes en iframes de Apps Script.
+      // Nunca se usa _top: abrir un archivo no debe sacar al usuario del panel.
       const fallback = document.createElement('a');
       fallback.href = safeUrl;
-      fallback.target = '_top';
+      fallback.target = '_blank';
       fallback.rel = 'noopener noreferrer';
       fallback.style.display = 'none';
       document.body.appendChild(fallback);

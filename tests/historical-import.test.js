@@ -159,4 +159,34 @@ test('indexa contratos ya existentes sin duplicar PDF, pago, carpeta ni Calendar
   assert.strictEqual(context.listHistoricalContracts_().length, 1);
 });
 
+test('reindexar un histórico no revierte pagos que ya se registraron en el sistema', () => {
+  const previous = state.history.find(item => item.contractNumber === 'C.9010');
+  previous.paid = 4500;
+  previous.balance = 0;
+  previous.status = 'PAGADO';
+  state.payments.push({
+    id:'pago-historico-protegido',
+    status:'COMPLETADO',
+    contractId:previous.id,
+    contractNumber:'C.9010',
+    amount:2250
+  });
+
+  const summary = context.indexHistoricalContracts({ records:[{
+    ...valid,
+    contractNumber:'C.9010',
+    clientName:'Cliente histórico corregido',
+    paid:2250,
+    balance:2250
+  }] });
+
+  assert.strictEqual(summary.updated, 1);
+  assert.strictEqual(summary.results[0].status, 'ACTUALIZADO_CON_SALDO_PROTEGIDO');
+  assert.strictEqual(previous.clientName, 'Cliente histórico corregido');
+  assert.strictEqual(previous.total, 4500);
+  assert.strictEqual(previous.paid, 4500);
+  assert.strictEqual(previous.balance, 0);
+  assert.strictEqual(previous.status, 'PAGADO');
+});
+
 console.log(`${passed} casos de importación histórica verificados correctamente.`);

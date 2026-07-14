@@ -49,6 +49,8 @@ assert.match(html, /id="agendaUpcomingGrid"/, 'la agenda separa los próximos ev
 assert.match(html, /id="agendaHistoryGrid"/, 'la agenda conserva un histórico separado');
 assert.match(html, /function openExternal\(/, 'los archivos se abren desde un gesto de clic');
 assert.match(html, /window\.open\(safeUrl, '_blank'/, 'los archivos de Drive se abren en otra pestaña');
+assert.match(html, /fallback\.target = '_blank'/, 'el respaldo también conserva el panel abierto');
+assert.doesNotMatch(html, /fallback\.target = '_top'/, 'ningún respaldo reemplaza el panel actual');
 assert.match(html, /callServer\(payload\.paymentSource === 'ARCHIVO_ANTERIOR' \? 'addHistoricalPayment' : 'addPayment', payload\)/, 'los contratos históricos aceptan pagos desde el panel');
 
 function extractFunction(source, name) {

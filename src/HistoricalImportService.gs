@@ -58,6 +58,15 @@ function indexHistoricalContracts(payload) {
     ensureSchema_();
     const existing = listObjects_('Historial');
     const byNumber = new Map(existing.map(item => [String(item.contractNumber || '').toUpperCase(), item]));
+    // Una reindexación sirve para corregir datos extraídos de los archivos
+    // anteriores, pero nunca debe borrar un abono que ya se registró desde el
+    // sistema ni abrir otra vez un saldo ya liquidado.
+    const contractsWithRegisteredPayments = new Set(
+      listObjects_('Pagos')
+        .filter(payment => String(payment.status || '').toUpperCase() === 'COMPLETADO')
+        .map(payment => String(payment.contractId || '').trim())
+        .filter(Boolean)
+    );
     let indexed = 0;
     let updated = 0;
     const results = [];
@@ -87,9 +96,19 @@ function indexHistoricalContracts(payload) {
         };
         const previous = byNumber.get(data.contractNumber);
         if (previous) {
+          const preserveFinancials = contractsWithRegisteredPayments.has(String(previous.id || '').trim());
+          if (preserveFinancials) {
+            item.total = roundMoney_(previous.total);
+            item.paid = roundMoney_(previous.paid);
+            item.balance = roundMoney_(previous.balance);
+            item.status = String(previous.status || (item.balance === 0 ? 'PAGADO' : 'CONFIRMADO')).toUpperCase();
+          }
           updateObject_('Historial', 'id', previous.id, item);
           updated += 1;
-          results.push({ contractNumber:data.contractNumber, status:'ACTUALIZADO' });
+          results.push({
+            contractNumber:data.contractNumber,
+            status:preserveFinancials ? 'ACTUALIZADO_CON_SALDO_PROTEGIDO' : 'ACTUALIZADO'
+          });
         } else {
           appendObject_('Historial', item);
           byNumber.set(data.contractNumber, item);
