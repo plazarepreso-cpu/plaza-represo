@@ -95,10 +95,17 @@ function setupSystem_(ownerEmail, employeeEmail) {
     });
 
     appendObject_('Usuarios', { email: owner, role: APP_CONFIG.ROLE_OWNER, active: true });
+    let employeeAccessWarning = '';
     if (employee) {
-      appendObject_('Usuarios', { email: employee, role: APP_CONFIG.ROLE_VIEWER, active: true });
-      spreadsheet.addViewer(employee);
-      contractsFolder.addViewer(employee);
+      appendObject_('Usuarios', { email: employee, role: APP_CONFIG.ROLE_VIEWER, active: false });
+      try {
+        grantDataAccess_(employee);
+        updateObject_('Usuarios', 'email', employee, { active: true });
+      } catch (error) {
+        employeeAccessWarning = String(error.message || error);
+        try { audit_('ERROR_ACCESO_INICIAL', 'Usuario', employee, { message: employeeAccessWarning }); }
+        catch (ignored) {}
+      }
     }
 
     const settings = {
@@ -114,7 +121,9 @@ function setupSystem_(ownerEmail, employeeEmail) {
 
     try { audit_('CONFIGURAR_SISTEMA', 'Sistema', spreadsheet.getId(), { owner, employee }); }
     catch (ignored) {}
-    return getSystemInfo_();
+    const systemInfo = getSystemInfo_();
+    if (employeeAccessWarning) systemInfo.employeeAccessWarning = employeeAccessWarning;
+    return systemInfo;
   } finally {
     lock.releaseLock();
   }

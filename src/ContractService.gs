@@ -13,6 +13,7 @@ function getBootstrapData() {
   }
   return {
     user,
+    users: user.role === APP_CONFIG.ROLE_OWNER ? listAccessUsers_() : [],
     config: {
       weekdayRate: Number(getSetting_('WEEKDAY_RATE', APP_CONFIG.WEEKDAY_RATE)),
       weekendRate: Number(getSetting_('WEEKEND_RATE', APP_CONFIG.WEEKEND_RATE)),

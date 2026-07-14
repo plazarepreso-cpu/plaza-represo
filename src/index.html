@@ -201,6 +201,7 @@
         <button class="nav-btn" type="button" data-view="contracts"><span class="nav-icon">▤</span><span class="nav-label">Contratos</span></button>
         <button class="nav-btn" type="button" data-view="payments"><span class="nav-icon">$</span><span class="nav-label">Pagos</span></button>
         <button class="nav-btn" type="button" data-view="clients"><span class="nav-icon">●</span><span class="nav-label">Clientes</span></button>
+        <button class="nav-btn owner-only" type="button" data-view="access"><span class="nav-icon">◆</span><span class="nav-label">Accesos</span></button>
         <button class="nav-btn owner-only" type="button" data-view="automations"><span class="nav-icon">⚙</span><span class="nav-label">Automatizaciones</span></button>
       </nav>
       <div class="side-note">La agenda, contratos y saldos se actualizan para todos. Las identificaciones permanecen privadas.</div>
@@ -321,10 +322,33 @@
           <div class="card table-wrap"><table class="data"><thead><tr><th>Nombre</th><th>Domicilio</th><th>Teléfono</th><th>INE privada</th><th>Última actualización</th></tr></thead><tbody id="clientsBody"></tbody></table></div>
         </section>
 
+        <section class="view owner-only" id="view-access">
+          <div class="page-head"><div><h3>Accesos del equipo</h3><p>El propietario decide qué correos pueden consultar el panel y los contratos.</p></div></div>
+          <div class="grid dashboard-grid">
+            <form class="card form-card" id="accessForm">
+              <div class="card-head"><h4>Agregar o restaurar acceso</h4></div>
+              <div class="card-body form-grid">
+                <div class="field full"><label for="accessEmail">Correo del empleado</label><input id="accessEmail" name="email" type="email" required autocomplete="off" placeholder="empleado@ejemplo.com"></div>
+                <div class="field full"><button class="btn btn-primary" type="submit" style="width:100%">Dar acceso de consulta</button></div>
+              </div>
+            </form>
+            <div class="card"><div class="card-head"><h4>Cuentas autorizadas</h4></div><div class="card-body"><p style="color:var(--muted);margin-top:0">Los empleados ven agenda, contratos, pagos y clientes, pero nunca la fotografía de la INE.</p></div></div>
+          </div>
+          <div class="card table-wrap" style="margin-top:18px"><table class="data"><thead><tr><th>Correo</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody id="accessBody"></tbody></table></div>
+        </section>
+
         <section class="view owner-only" id="view-automations">
           <div class="page-head"><div><h3>Automatizaciones</h3><p>Estado de tareas programadas y ejecución manual para el propietario.</p></div><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-ghost" type="button" id="installAutomationsButton">Instalar o reparar</button><button class="btn btn-primary" type="button" id="runAutomationButton">Ejecutar ahora</button></div></div>
           <div class="grid automation-grid" id="automationSummary"></div>
           <div class="card" style="margin-top:18px"><div class="card-head"><h4>Detalle</h4></div><div class="card-body" id="automationDetail"></div></div>
+          <div class="card form-card" style="margin-top:18px">
+            <div class="card-head"><h4>Importar contratos anteriores</h4></div>
+            <div class="card-body form-grid">
+              <div class="field full"><label for="historicalImportFile">Archivo de revisión JSON</label><input id="historicalImportFile" type="file" accept="application/json,.json" aria-describedby="historicalImportHelp"></div>
+              <div class="field full"><p id="historicalImportHelp" style="color:var(--muted);margin:0">Solo el propietario puede importar. Se validan números, fechas, pagos y duplicados antes de crear PDF y Calendar.</p></div>
+              <div class="field full"><button class="btn btn-dark" type="button" id="importHistoricalButton" style="width:100%">Validar e importar historial</button></div>
+            </div>
+          </div>
         </section>
       </div>
     </main>
@@ -357,9 +381,9 @@
       toastTimer: null,
       automationLastSummary: null,
       automationLastRunAt: '',
-      formDirty: { contract: false, payment: false, edit: false }
+      formDirty: { contract: false, payment: false, access: false, edit: false }
     };
-    const viewTitles = { dashboard: 'Resumen general', 'new-contract': 'Nuevo contrato', agenda: 'Agenda compartida', contracts: 'Contratos', payments: 'Pagos y recibos', clients: 'Clientes', automations: 'Automatizaciones' };
+    const viewTitles = { dashboard: 'Resumen general', 'new-contract': 'Nuevo contrato', agenda: 'Agenda compartida', contracts: 'Contratos', payments: 'Pagos y recibos', clients: 'Clientes', access: 'Accesos del equipo', automations: 'Automatizaciones' };
     const money = value => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
     const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Hermosillo' });
     const nowLocalIso = () => {
@@ -493,6 +517,7 @@
         user: { email: 'propietario@demo.local', role: 'PROPIETARIO' },
         config,
         system: { configured: false },
+        users: [{ email:'propietario@demo.local', role:'PROPIETARIO', active:true }],
         automation: { installed: false, status: 'PENDIENTE', triggerCount: 0, lastRunAt: '', lastSummary: 'Aún no se ejecutan automatizaciones en esta demostración.' },
         contracts: [
           { id:'demo-1', requestId:'seed-contract-1', contractNumber:'C.2623', version:1, status:'CONFIRMADO', elaborationDate:baseDate, eventDate:firstEventDate, eventDay:dayName(firstEventDate), startTime:'18:00', endTime:'23:00', eventType:'Fiesta infantil ficticia', clientId:'client-1', clientName:'Mariana Ejemplo Navarro', address:'Calle Demostración 123, Col. Modelo', phone:'000 000 0000', total:firstTotal, initialDeposit:firstDeposit, paid:firstDeposit, balance:roundMoney(firstTotal-firstDeposit), overrideReason:'', currentPdfFileId:'', updatedAt:firstUpdated },
@@ -671,6 +696,25 @@
         saveMock(db);
         return contract;
       }
+      if (method === 'grantViewerAccess') {
+        const email = String(payload.email || '').trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Indica un correo electrónico válido.');
+        if (email === String(db.user.email || '').toLowerCase()) throw new Error('La cuenta propietaria ya tiene acceso total.');
+        const existing = db.users.find(user => String(user.email || '').toLowerCase() === email);
+        if (existing) Object.assign(existing, { role:'CONSULTA', active:true });
+        else db.users.push({ email, role:'CONSULTA', active:true });
+        saveMock(db);
+        return db.users;
+      }
+      if (method === 'revokeViewerAccess') {
+        const email = String(payload.email || '').trim().toLowerCase();
+        if (email === String(db.user.email || '').toLowerCase()) throw new Error('No puedes retirar el acceso de la cuenta propietaria.');
+        const existing = db.users.find(user => String(user.email || '').toLowerCase() === email);
+        if (!existing) throw new Error('La cuenta indicada no está registrada.');
+        existing.active = false;
+        saveMock(db);
+        return db.users;
+      }
       if (method === 'installAutomations') {
         db.automation = { ...(db.automation || {}), installed:true, status:'ACTIVA', triggerCount:1, installedAt:nowLocalIso(), lastSummary:'Automatizaciones ficticias instaladas en el modo demo.' };
         saveMock(db);
@@ -697,6 +741,7 @@
       normalized.contracts = Array.isArray(normalized.contracts) ? normalized.contracts : [];
       normalized.clients = Array.isArray(normalized.clients) ? normalized.clients : [];
       normalized.payments = Array.isArray(normalized.payments) ? normalized.payments : [];
+      normalized.users = Array.isArray(normalized.users) ? normalized.users : [];
       normalized.automation = normalized.automation || { installed:false, status:'PENDIENTE', triggerCount:0, lastRunAt:'', lastSummary:'Sin información disponible.' };
       return normalized;
     }
@@ -780,6 +825,7 @@
       renderContracts();
       renderPayments();
       renderClients();
+      renderAccess();
       renderAutomations();
     }
 
@@ -850,6 +896,22 @@
         else if (client.hasIne) ineStatus = '<span class="status CONFIRMADO">RESGUARDADA</span>';
         return `<tr><td><strong>${escapeHtml(client.name)}</strong></td><td>${escapeHtml(client.address)}</td><td>${escapeHtml(client.phone)}</td><td>${ineStatus}</td><td>${escapeHtml(String(client.updatedAt || '').slice(0, 10))}</td></tr>`;
       }).join('') || '<tr><td colspan="5" class="empty">No se encontraron clientes.</td></tr>';
+    }
+
+    function renderAccess() {
+      const users = [...(state.data.users || [])].sort((a, b) => {
+        if (a.role === 'PROPIETARIO' && b.role !== 'PROPIETARIO') return -1;
+        if (b.role === 'PROPIETARIO' && a.role !== 'PROPIETARIO') return 1;
+        return String(a.email || '').localeCompare(String(b.email || ''));
+      });
+      document.getElementById('accessBody').innerHTML = users.map(user => {
+        const isOwner = user.role === 'PROPIETARIO';
+        const active = user.active === true || String(user.active).toLowerCase() === 'true';
+        const action = isOwner
+          ? '<span style="color:var(--muted)">Cuenta principal</span>'
+          : `<button class="btn ${active ? 'btn-danger' : 'btn-ghost'} btn-small" type="button" data-access-action="${active ? 'revoke' : 'grant'}" data-access-email="${escapeHtml(user.email)}">${active ? 'Retirar' : 'Restaurar'}</button>`;
+        return `<tr><td><strong>${escapeHtml(user.email)}</strong></td><td>${isOwner ? 'Propietario' : 'Solo consulta'}</td><td><span class="status ${active ? 'CONFIRMADO' : 'CANCELADO'}">${active ? 'ACTIVO' : 'INACTIVO'}</span></td><td>${action}</td></tr>`;
+      }).join('') || '<tr><td colspan="4" class="empty">No hay cuentas registradas.</td></tr>';
     }
 
     function automationText(value) {
@@ -1084,12 +1146,14 @@
 
     const paymentForm = document.getElementById('paymentForm');
     const contractForm = document.getElementById('contractForm');
+    const accessForm = document.getElementById('accessForm');
     paymentForm.elements.namedItem('date').value = today();
     contractForm.elements.namedItem('elaborationDate').value = today();
     ['eventDate', 'initialDeposit'].forEach(name => contractForm.elements.namedItem(name).addEventListener('input', updatePaymentPreview));
     contractForm.elements.namedItem('total').addEventListener('input', event => { event.target.dataset.edited = 'true'; updatePaymentPreview(); });
     setFormDirtyTracking('contractForm', 'contract');
     setFormDirtyTracking('paymentForm', 'payment');
+    setFormDirtyTracking('accessForm', 'access');
     setFormDirtyTracking('editForm', 'edit');
 
     document.getElementById('ineFile').addEventListener('change', async event => {
@@ -1218,6 +1282,40 @@
       }
     });
 
+    accessForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const payload = Object.fromEntries(new FormData(event.target).entries());
+      showLoading('Compartiendo acceso de consulta…');
+      try {
+        await callServer('grantViewerAccess', payload);
+        state.formDirty.access = false;
+        event.target.reset();
+        await loadLatest({ message:'Acceso de consulta actualizado.' });
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        hideLoading();
+      }
+    });
+
+    document.getElementById('accessBody').addEventListener('click', async event => {
+      const button = event.target.closest('[data-access-action]');
+      if (!button) return;
+      const email = button.dataset.accessEmail;
+      const action = button.dataset.accessAction;
+      if (action === 'revoke' && !window.confirm(`¿Retirar el acceso de ${email}?`)) return;
+      showLoading(action === 'revoke' ? 'Retirando acceso…' : 'Restaurando acceso…');
+      try {
+        await callServer(action === 'revoke' ? 'revokeViewerAccess' : 'grantViewerAccess', { email });
+        await loadLatest({ message:action === 'revoke' ? 'Acceso retirado.' : 'Acceso restaurado.' });
+      } catch (error) {
+        await loadLatest();
+        toast(error.message, true);
+      } finally {
+        hideLoading();
+      }
+    });
+
     document.getElementById('editForm').addEventListener('submit', async event => {
       event.preventDefault();
       const payload = Object.fromEntries(new FormData(event.target).entries());
@@ -1282,6 +1380,34 @@
       }
     });
 
+    document.getElementById('importHistoricalButton').addEventListener('click', async () => {
+      if (state.isDemo) return toast('La importación histórica solo está disponible después de conectar Google.', true);
+      const file = document.getElementById('historicalImportFile').files[0];
+      if (!file) return toast('Selecciona el archivo de revisión histórica.', true);
+      let records;
+      try {
+        const parsed = JSON.parse(await file.text());
+        const candidates = Array.isArray(parsed) ? parsed : parsed.contracts;
+        if (!Array.isArray(candidates)) throw new Error('El archivo no contiene una lista de contratos.');
+        records = candidates.filter(record => record && record.readyForImport !== false && record.recordType !== 'next-contract-draft');
+        if (!records.length) throw new Error('No hay contratos aprobados para importar.');
+      } catch (error) {
+        return toast(`No se pudo leer el archivo: ${error.message}`, true);
+      }
+      if (!window.confirm(`¿Importar ${records.length} contratos anteriores y crear sus eventos?`)) return;
+      showLoading(`Importando ${records.length} contratos anteriores…`);
+      try {
+        const summary = await callServer('importHistoricalContracts', { records });
+        const message = `Importación terminada: ${Number(summary.imported || 0)} agregados, ${Number(summary.skipped || 0)} omitidos y ${Number(summary.errors || 0)} errores.`;
+        document.getElementById('historicalImportFile').value = '';
+        await loadLatest({ message });
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        hideLoading();
+      }
+    });
+
     document.getElementById('resetDemoButton').addEventListener('click', async () => {
       if (!state.isDemo || !window.confirm('¿Restablecer todos los datos ficticios de esta demostración?')) return;
       try { window.localStorage.removeItem(DEMO_STORAGE_KEY); } catch (ignored) {}
@@ -1291,6 +1417,7 @@
       clearPendingRequestId('payment');
       contractForm.reset();
       paymentForm.reset();
+      accessForm.reset();
       await loadLatest({ message:'Demostración restablecida.', showBusy:true });
       switchView('dashboard');
     });

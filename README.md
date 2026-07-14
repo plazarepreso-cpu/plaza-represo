@@ -6,6 +6,7 @@ Aplicación web gratuita para administrar clientes, contratos, pagos y agenda de
 
 - Un solo panel adaptable a computadora y celular.
 - Roles `PROPIETARIO` y `CONSULTA` validados también en el servidor.
+- Administración de correos desde el apartado **Accesos**, con alta, retiro y restauración por el propietario.
 - Captura de INE con OCR gratuito en el navegador y confirmación manual.
 - Numeración automática desde `C.2626`, después de incorporar los contratos existentes hasta `C.2625`.
 - Tarifas automáticas: $3,500 entre semana y $4,500 sábado o domingo.
@@ -13,6 +14,7 @@ Aplicación web gratuita para administrar clientes, contratos, pagos y agenda de
 - Contrato PDF, recibos, historial de pagos y saldo calculado.
 - Agenda sincronizada con Google Calendar y recordatorios automáticos.
 - Conciliación diaria reparable de eventos y aviso de contratos con saldo a siete días o menos.
+- Importación validada de contratos anteriores, sin duplicar números ni pagos.
 - Identificaciones guardadas en una carpeta privada, separada de los contratos compartidos y con referencia histórica por contrato.
 - Modo demostración local con información completamente ficticia.
 
