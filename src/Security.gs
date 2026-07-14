@@ -34,6 +34,7 @@ function stripPrivateClientFields_(client) {
 
 function stripPrivateContractFields_(contract) {
   const publicContract = Object.assign({}, contract);
+  publicContract.hasIne = Boolean(contract.ineFileId);
   delete publicContract.ineFileId;
   return publicContract;
 }

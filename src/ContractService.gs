@@ -4,7 +4,13 @@ function getBootstrapData() {
     .filter(item => item.status !== 'GENERANDO')
     .map(stripPrivateContractFields_)
     .sort((a, b) => String(a.eventDate).localeCompare(String(b.eventDate)));
-  const clients = listObjects_('Clientes').map(stripPrivateClientFields_);
+  const clients = listObjects_('Clientes').map(client => {
+    const publicClient = stripPrivateClientFields_(client);
+    if (user.role === APP_CONFIG.ROLE_OWNER && client.ineFileId) {
+      publicClient.privateIneUrl = privateIneUrlForOwner_(client.ineFileId);
+    }
+    return publicClient;
+  });
   const payments = listObjects_('Pagos').sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   let automation = { installed: false, triggerCount: 0, hour: 8, timeZone: APP_CONFIG.TIME_ZONE };
   if (user.role === APP_CONFIG.ROLE_OWNER) {
@@ -24,6 +30,7 @@ function getBootstrapData() {
     contracts,
     agenda: listAgendaEvents_(),
     history: listHistoricalContracts_(),
+    files: listContractFileLinks_(),
     clients,
     payments,
     system: getSystemInfo_(),
@@ -385,12 +392,79 @@ function cancelContract(payload) {
 
 function getPrivateIneUrl(payload) {
   requireOwner_();
-  const contract = findObject_('Contratos', 'id', payload && payload.id);
-  if (!contract) throw new Error('No se encontró el contrato.');
-  const client = findObject_('Clientes', 'id', contract.clientId);
-  const ineFileId = contract.ineFileId || (client && client.ineFileId);
+  const data = payload || {};
+  let client = null;
+  let ineFileId = '';
+
+  if (data.id) {
+    const contract = findObject_('Contratos', 'id', data.id);
+    if (!contract) throw new Error('No se encontró el contrato.');
+    client = contract.clientId ? findObject_('Clientes', 'id', contract.clientId) : null;
+    ineFileId = contract.ineFileId || (client && client.ineFileId) || '';
+  } else if (data.clientId) {
+    client = findObject_('Clientes', 'id', data.clientId);
+    if (!client) throw new Error('No se encontró el cliente.');
+    ineFileId = client.ineFileId || '';
+  } else {
+    throw new Error('Indica el contrato o cliente cuya identificación deseas consultar.');
+  }
+
   if (!ineFileId) throw new Error('Este cliente no tiene una identificación guardada.');
-  return DriveApp.getFileById(ineFileId).getUrl();
+  const privateFolderId = String(
+    PropertiesService.getScriptProperties().getProperty('PRIVATE_INE_FOLDER_ID') || ''
+  ).trim();
+  if (!privateFolderId) throw new Error('La carpeta privada de identificaciones no está configurada.');
+
+  let file;
+  try {
+    file = DriveApp.getFileById(ineFileId);
+  } catch (error) {
+    throw new Error('No se pudo abrir la identificación guardada. Verifica que el archivo todavía exista.');
+  }
+  if (!isFileInsideFolder_(file, privateFolderId)) {
+    throw new Error('El archivo solicitado no pertenece al resguardo privado de identificaciones.');
+  }
+  return file.getUrl();
+}
+
+function privateIneUrlForOwner_(ineFileId) {
+  const privateFolderId = String(
+    PropertiesService.getScriptProperties().getProperty('PRIVATE_INE_FOLDER_ID') || ''
+  ).trim();
+  if (!ineFileId || !privateFolderId) return '';
+  try {
+    const file = DriveApp.getFileById(ineFileId);
+    return isFileInsideFolder_(file, privateFolderId) ? file.getUrl() : '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function isFileInsideFolder_(file, expectedFolderId) {
+  const targetId = String(expectedFolderId || '').trim();
+  if (!file || !targetId) return false;
+  const pending = [];
+  const visited = {};
+  let parents;
+  try { parents = file.getParents(); }
+  catch (error) { return false; }
+  while (parents.hasNext()) pending.push(parents.next());
+
+  // Admite subcarpetas dentro del resguardo, pero nunca archivos externos.
+  while (pending.length) {
+    const folder = pending.shift();
+    let folderId = '';
+    try { folderId = String(folder.getId() || ''); }
+    catch (error) { continue; }
+    if (folderId === targetId) return true;
+    if (!folderId || visited[folderId]) continue;
+    visited[folderId] = true;
+    try {
+      const ancestors = folder.getParents();
+      while (ancestors.hasNext()) pending.push(ancestors.next());
+    } catch (ignored) {}
+  }
+  return false;
 }
 
 function upsertClientForContract_(data, contractNumber, timestamp) {

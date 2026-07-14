@@ -34,6 +34,7 @@ const SHEET_HEADERS = Object.freeze({
     'startTime', 'endTime', 'eventType', 'clientName', 'address', 'phone',
     'total', 'paid', 'balance', 'source', 'updatedAt'
   ],
+  Archivos: ['id', 'contractNumber', 'contractFileId', 'contractFileName', 'updatedAt'],
   Auditoria: ['timestamp', 'user', 'action', 'entityType', 'entityId', 'detailsJson'],
   Usuarios: ['email', 'role', 'active'],
   Configuracion: ['key', 'value']

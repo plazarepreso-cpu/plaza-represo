@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Plaza Represo</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <style>
     :root {
       --ink: #171717;
@@ -297,7 +298,7 @@
         </section>
 
         <section class="view" id="view-contracts">
-          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios.</p></div><div class="filters"><div><label class="sr-only" for="contractSearch">Buscar contrato</label><input id="contractSearch" placeholder="Buscar número o cliente"></div><div><label class="sr-only" for="contractStatus">Filtrar por estado</label><select id="contractStatus"><option value="">Todos</option><option>CONFIRMADO</option><option>PAGADO</option><option>CANCELADO</option><option>CALENDARIO</option><option>ERROR</option></select></div></div></div>
+          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios.</p></div><div class="filters"><button class="btn btn-ghost owner-only" type="button" id="syncFilesButton">Vincular archivos de Drive</button><div><label class="sr-only" for="contractSearch">Buscar contrato</label><input id="contractSearch" placeholder="Buscar número o cliente"></div><div><label class="sr-only" for="contractStatus">Filtrar por estado</label><select id="contractStatus"><option value="">Todos</option><option>CONFIRMADO</option><option>PAGADO</option><option>CANCELADO</option><option>CALENDARIO</option><option>ERROR</option></select></div></div></div>
           <div class="card table-wrap"><table class="data"><thead><tr><th>Contrato</th><th>Evento</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th></th></tr></thead><tbody id="contractsBody"></tbody></table></div>
         </section>
 
@@ -350,6 +351,15 @@
               <div class="field full"><p id="historicalImportHelp" style="color:var(--muted);margin:0">Para contratos que ya están en Drive o Calendar usa “Mostrar en el panel”: solo guarda el índice y no crea copias. El sistema actual comienza en C.2626.</p></div>
               <div class="field full"><button class="btn btn-primary" type="button" id="indexHistoricalButton" style="width:100%">Mostrar contratos anteriores en el panel (sin duplicar)</button></div>
               <div class="field full"><button class="btn btn-ghost" type="button" id="importHistoricalButton" style="width:100%">Importar y crear archivos solo si no existen</button></div>
+            </div>
+          </div>
+          <div class="card form-card" style="margin-top:18px">
+            <div class="card-head"><h4>Resguardar INE de contratos anteriores</h4></div>
+            <div class="card-body form-grid">
+              <div class="field full"><label for="historicalIneFiles">ZIP original o imágenes “C.#### INE”</label><input id="historicalIneFiles" type="file" accept="application/zip,.zip,image/jpeg,image/png,image/webp" multiple aria-describedby="historicalIneHelp"></div>
+              <div class="field full"><p id="historicalIneHelp" style="color:var(--muted);margin:0">Solo el propietario puede importarlas y abrirlas. El empleado nunca recibe la foto ni el enlace privado.</p></div>
+              <div class="field full"><button class="btn btn-primary" type="button" id="syncHistoricalIneButton" style="width:100%">Encontrar y proteger las INE que ya están en Drive</button></div>
+              <div class="field full"><button class="btn btn-primary" type="button" id="importHistoricalIneButton" style="width:100%">Importar INE al resguardo privado</button></div>
             </div>
           </div>
         </section>
@@ -521,6 +531,7 @@
         config,
         system: { configured: false },
         users: [{ email:'propietario@demo.local', role:'PROPIETARIO', active:true }],
+        files: [],
         automation: { installed: false, status: 'PENDIENTE', triggerCount: 0, lastRunAt: '', lastSummary: 'Aún no se ejecutan automatizaciones en esta demostración.' },
         agenda: [],
         history: [],
@@ -723,6 +734,12 @@
       if (method === 'syncAgendaNow') {
         return { synced:db.contracts.length, calendars:1, errors:[] };
       }
+      if (method === 'syncExistingContractFiles') {
+        return { linked:0, missing:db.contracts.length, errors:0, results:[] };
+      }
+      if (method === 'syncHistoricalIneFiles') {
+        return { secured:0, existing:0, missing:db.history.length, errors:0, results:[] };
+      }
       if (method === 'installAutomations') {
         db.automation = { ...(db.automation || {}), installed:true, status:'ACTIVA', triggerCount:1, installedAt:nowLocalIso(), lastSummary:'Automatizaciones ficticias instaladas en el modo demo.' };
         saveMock(db);
@@ -772,6 +789,7 @@
       normalized.contracts = (Array.isArray(normalized.contracts) ? normalized.contracts : []).map(normalizeEventRecord);
       normalized.agenda = (Array.isArray(normalized.agenda) ? normalized.agenda : []).map(normalizeEventRecord);
       normalized.history = (Array.isArray(normalized.history) ? normalized.history : []).map(normalizeEventRecord);
+      normalized.files = Array.isArray(normalized.files) ? normalized.files : [];
       normalized.clients = Array.isArray(normalized.clients) ? normalized.clients : [];
       normalized.payments = Array.isArray(normalized.payments) ? normalized.payments : [];
       normalized.users = Array.isArray(normalized.users) ? normalized.users : [];
@@ -823,7 +841,14 @@
         const key = String(item.contractNumber || '').trim().toUpperCase();
         if (key) combined.set(key, Object.assign({}, item, { source:'CONTRATO' }));
       });
-      return Array.from(combined.values());
+      const files = new Map((state.data.files || []).map(item => [String(item.contractNumber || '').trim().toUpperCase(), item]));
+      return Array.from(combined.entries()).map(([key, item]) => {
+        const linked = files.get(key) || {};
+        return Object.assign({}, item, {
+          currentPdfFileId:item.currentPdfFileId || linked.contractFileId || '',
+          contractFileName:item.contractFileName || linked.contractFileName || ''
+        });
+      });
     }
     function clientItems() {
       const combined = new Map();
@@ -865,7 +890,12 @@
 
     function driveFileLink(fileId, label) {
       const url = driveFileUrl(fileId);
-      return url ? `<a class="btn btn-ghost btn-small" href="${url}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>` : '';
+      return url ? `<a class="btn btn-ghost btn-small" href="${url}" target="_top" rel="noopener noreferrer">${escapeHtml(label)}</a>` : '';
+    }
+
+    function privateDriveUrl(value) {
+      const url = String(value || '').trim();
+      return /^https:\/\/(?:drive|docs)\.google\.com\//.test(url) ? url : '';
     }
 
     function updateLastUpdated() {
@@ -967,12 +997,11 @@
         .sort(compareEventsDescending);
       document.getElementById('contractsBody').innerHTML = rows.map(contract => {
         const status = String(contract.status || '');
-        const pdfLink = driveFileLink(contract.currentPdfFileId, 'PDF');
-        const canOpen = contract.source === 'CONTRATO';
-        const sourceLabel = canOpen ? `Versión ${contract.version || 1}` : (contract.source === 'ARCHIVO_ANTERIOR' ? 'Contrato anterior' : 'Registrado en Calendar');
-        const action = canOpen
-          ? `<button class="btn btn-ghost btn-small" type="button" data-contract-id="${escapeHtml(contract.id)}">Ver</button>${pdfLink}`
-          : `<span style="color:var(--muted);font-size:12px">${contract.source === 'ARCHIVO_ANTERIOR' ? 'Indexado' : 'Calendar'}</span>`;
+        const pdfLink = driveFileLink(contract.currentPdfFileId, 'Abrir archivo');
+        const managed = contract.source === 'CONTRATO';
+        const sourceLabel = managed ? `Versión ${contract.version || 1}` : (contract.source === 'ARCHIVO_ANTERIOR' ? 'Contrato anterior' : 'Registrado en Calendar');
+        const missingFile = managed || contract.currentPdfFileId ? '' : '<span style="color:var(--muted);font-size:12px">Archivo no vinculado</span>';
+        const action = `<button class="btn btn-ghost btn-small" type="button" data-contract-id="${escapeHtml(contract.id)}">Ver datos</button>${pdfLink}${missingFile}`;
         const amount = value => value === '' || value === null || value === undefined ? '—' : money(value);
         return `<tr><td><strong>${escapeHtml(contract.contractNumber)}</strong><br><small>${escapeHtml(sourceLabel)}</small></td><td>${escapeHtml(contract.eventDate || '—')}<br><small>${escapeHtml(contract.startTime || '—')}–${escapeHtml(contract.endTime || '—')}</small></td><td>${escapeHtml(contract.clientName || 'Sin nombre registrado')}</td><td>${amount(contract.total)}</td><td>${amount(contract.paid)}</td><td><strong>${amount(contract.balance)}</strong></td><td><span class="status ${statusClass(status)}">${escapeHtml(status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap">${action}</div></td></tr>`;
       }).join('') || '<tr><td colspan="8" class="empty">No se encontraron contratos.</td></tr>';
@@ -1002,7 +1031,9 @@
       document.getElementById('clientsBody').innerHTML = clients.map(client => {
         let ineStatus = '<span style="color:var(--muted)">No guardada</span>';
         if (state.isDemo) ineStatus = client.ineSimulated ? '<span class="status PENDIENTE">SIMULADA · NO PERSISTIDA</span>' : '<span style="color:var(--muted)">No persistida</span>';
-        else if (client.hasIne) ineStatus = '<span class="status CONFIRMADO">RESGUARDADA</span>';
+        else if (client.hasIne && state.data.user.role === 'PROPIETARIO' && privateDriveUrl(client.privateIneUrl)) ineStatus = `<a class="btn btn-ghost btn-small" href="${escapeHtml(privateDriveUrl(client.privateIneUrl))}" target="_top" rel="noopener noreferrer">Abrir INE</a>`;
+        else if (client.hasIne && state.data.user.role === 'PROPIETARIO') ineStatus = `<button class="btn btn-ghost btn-small" type="button" data-ine-client-id="${escapeHtml(client.id)}">Abrir INE</button>`;
+        else if (client.hasIne) ineStatus = '<span class="status CONFIRMADO">RESGUARDADA · SOLO ADMIN</span>';
         else if (client.historical) ineStatus = '<span style="color:var(--muted)">Contrato anterior</span>';
         return `<tr><td><strong>${escapeHtml(client.name)}</strong></td><td>${escapeHtml(client.address)}</td><td>${escapeHtml(client.phone)}</td><td>${ineStatus}</td><td>${escapeHtml(String(client.updatedAt || '').slice(0, 10))}</td></tr>`;
       }).join('') || '<tr><td colspan="5" class="empty">No se encontraron clientes.</td></tr>';
@@ -1208,26 +1239,67 @@
       return { name, address };
     }
 
+    function relatedStoredClient(contract) {
+      const clientId = String(contract.clientId || '');
+      const clientName = String(contract.clientName || '').trim().toLocaleLowerCase('es');
+      return state.data.clients.find(client =>
+        (clientId && String(client.id) === clientId) ||
+        (clientName && String(client.name || '').trim().toLocaleLowerCase('es') === clientName)
+      ) || null;
+    }
+
+    async function openPrivateIne(payload) {
+      const popup = window.open('about:blank', '_blank');
+      if (popup) {
+        popup.opener = null;
+        popup.document.title = 'Abriendo identificación privada…';
+        popup.document.body.textContent = 'Abriendo identificación privada…';
+      }
+      showLoading('Abriendo la identificación privada…');
+      try {
+        const url = await callServer('getPrivateIneUrl', payload);
+        if (!/^https:\/\/(?:drive|docs)\.google\.com\//.test(String(url || ''))) throw new Error('Google Drive no devolvió un enlace válido.');
+        if (popup) popup.location.replace(url);
+        else window.open(url, '_blank', 'noopener,noreferrer');
+      } catch (error) {
+        if (popup) popup.close();
+        toast(error.message || 'No se pudo abrir la INE.', true);
+      } finally {
+        hideLoading();
+      }
+    }
+
     function openContract(id) {
-      const contract = state.data.contracts.find(item => String(item.id) === String(id));
+      const contract = contractItems().find(item => String(item.id) === String(id));
       if (!contract) return toast('No se encontró el contrato seleccionado.', true);
       state.selectedContract = contract;
       state.formDirty.edit = false;
       document.getElementById('dialogTitle').textContent = `${contract.contractNumber} · ${contract.status}`;
-      const editable = state.data.user.role === 'PROPIETARIO' && contract.status !== 'CANCELADO';
+      const managed = contract.source === 'CONTRATO';
+      const editable = state.data.user.role === 'PROPIETARIO' && managed && contract.status !== 'CANCELADO';
       const fields = [
         ['clientName', 'Nombre', contract.clientName, 'text'], ['phone', 'Teléfono', contract.phone, 'text'], ['address', 'Domicilio', contract.address, 'text'],
         ['elaborationDate', 'Elaboración', contract.elaborationDate, 'date'], ['eventDate', 'Fecha del evento', contract.eventDate, 'date'], ['eventType', 'Tipo de evento', contract.eventType, 'text'],
         ['startTime', 'Inicio', contract.startTime, 'time'], ['endTime', 'Término', contract.endTime, 'time'], ['total', 'Pago total', contract.total, 'number'], ['overrideReason', 'Motivo de tarifa especial', contract.overrideReason || '', 'text']
       ];
-      const pdfLink = driveFileLink(contract.currentPdfFileId, 'Abrir PDF vigente');
-      document.getElementById('dialogFields').innerHTML = `<input type="hidden" name="id" value="${escapeHtml(contract.id)}"><input type="hidden" name="expectedVersion" value="${escapeHtml(contract.version)}">` + fields.map(([name, label, value, type], index) => {
+      const pdfLink = driveFileLink(contract.currentPdfFileId, managed ? 'Abrir PDF vigente' : 'Abrir archivo del contrato');
+      const client = relatedStoredClient(contract);
+      const hasIne = Boolean(contract.hasIne || client?.hasIne);
+      const directIneUrl = privateDriveUrl(client?.privateIneUrl);
+      const ineButton = state.data.user.role === 'PROPIETARIO' && hasIne
+        ? (directIneUrl
+          ? `<a class="btn btn-ghost btn-small" href="${escapeHtml(directIneUrl)}" target="_top" rel="noopener noreferrer">Abrir INE privada</a>`
+          : `<button class="btn btn-ghost btn-small" type="button" ${managed ? `data-ine-contract-id="${escapeHtml(contract.id)}"` : `data-ine-client-id="${escapeHtml(client?.id || '')}"`}>Abrir INE privada</button>`)
+        : '';
+      const versionText = managed ? `Versión actual: <strong>${escapeHtml(contract.version || 1)}</strong>` : 'Registro anterior de solo lectura';
+      const fileStatus = pdfLink ? `<div style="margin-top:10px">${pdfLink}</div>` : '<div style="margin-top:10px;color:var(--muted)">Archivo original todavía no vinculado.</div>';
+      document.getElementById('dialogFields').innerHTML = `<input type="hidden" name="id" value="${escapeHtml(contract.id)}"><input type="hidden" name="expectedVersion" value="${escapeHtml(contract.version || '')}">` + fields.map(([name, label, value, type], index) => {
         const inputId = `edit-${name}`;
         const fieldClass = name === 'address' || name === 'overrideReason' ? 'full' : (index < 2 ? 'half' : '');
         const step = type === 'number' ? ' step="0.01" min="1"' : '';
         const required = editable && name !== 'overrideReason' ? 'required' : '';
-        return `<div class="field ${fieldClass}"><label for="${inputId}">${escapeHtml(label)}</label><input id="${inputId}" name="${name}" type="${type}" value="${escapeHtml(value)}"${step} ${editable ? required : 'disabled'}></div>`;
-      }).join('') + `<div class="field full warning">Pagado: <strong>${money(contract.paid)}</strong> · Saldo: <strong>${money(contract.balance)}</strong> · Versión actual: <strong>${escapeHtml(contract.version)}</strong>${pdfLink ? `<div style="margin-top:10px">${pdfLink}</div>` : ''}</div>`;
+        return `<div class="field ${fieldClass}"><label for="${inputId}">${escapeHtml(label)}</label><input id="${inputId}" name="${name}" type="${type}" value="${escapeHtml(value ?? '')}"${step} ${editable ? required : 'disabled'}></div>`;
+      }).join('') + `<div class="field full warning">Pagado: <strong>${money(contract.paid)}</strong> · Saldo: <strong>${money(contract.balance)}</strong> · ${versionText}${fileStatus}${ineButton ? `<div style="margin-top:10px">${ineButton}</div>` : ''}</div>`;
       document.getElementById('cancelControls').style.display = editable ? '' : 'none';
       document.getElementById('cancelReason').value = '';
       document.querySelector('#editForm button[type="submit"]').style.display = editable ? '' : 'none';
@@ -1246,6 +1318,16 @@
     document.getElementById('contractSearch').addEventListener('input', renderContracts);
     document.getElementById('contractStatus').addEventListener('change', renderContracts);
     document.getElementById('clientSearch').addEventListener('input', renderClients);
+    document.getElementById('clientsBody').addEventListener('click', event => {
+      const button = event.target.closest('[data-ine-client-id]');
+      if (button) openPrivateIne({ clientId:button.dataset.ineClientId });
+    });
+    document.getElementById('dialogFields').addEventListener('click', event => {
+      const button = event.target.closest('[data-ine-client-id],[data-ine-contract-id]');
+      if (!button) return;
+      if (button.dataset.ineContractId) openPrivateIne({ id:button.dataset.ineContractId });
+      else openPrivateIne({ clientId:button.dataset.ineClientId });
+    });
     document.getElementById('contractsBody').addEventListener('click', event => {
       const button = event.target.closest('[data-contract-id]');
       if (button) openContract(button.dataset.contractId);
@@ -1261,6 +1343,19 @@
         toast(`Agenda sincronizada: ${Number(summary?.synced || 0)} eventos encontrados.`);
       } catch (error) {
         toast(error.message || 'No se pudo sincronizar la agenda.', true);
+      } finally {
+        hideLoading();
+      }
+    });
+    document.getElementById('syncFilesButton').addEventListener('click', async () => {
+      showLoading('Buscando los contratos existentes en Google Drive…');
+      try {
+        const summary = await callServer('syncExistingContractFiles');
+        const ambiguous = Number(summary?.ambiguous || 0);
+        const message = `Archivos vinculados: ${Number(summary?.linked || 0)}. Sin localizar: ${Number(summary?.missing || 0)}${ambiguous ? `. Para revisar: ${ambiguous}` : ''}.`;
+        await loadLatest({ message });
+      } catch (error) {
+        toast(error.message || 'No se pudieron vincular los archivos de Drive.', true);
       } finally {
         hideLoading();
       }
@@ -1504,6 +1599,107 @@
         await loadLatest({ message });
       } catch (error) {
         toast(error.message, true);
+      } finally {
+        hideLoading();
+      }
+    });
+
+    function historicalIneNumberFromName(fileName) {
+      const normalized = String(fileName || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const match = normalized.match(/(?:^|[\\/])?c[\s._-]*(\d{4,})[\s._-]+ine(?:[\s._-]|$)/i);
+      return match ? `C.${match[1]}` : '';
+    }
+
+    function historicalImageType(fileName) {
+      const extension = String(fileName || '').toLowerCase().match(/\.(jpe?g|png|webp)$/)?.[1] || '';
+      if (extension === 'jpg' || extension === 'jpeg') return 'image/jpeg';
+      if (extension === 'png') return 'image/png';
+      if (extension === 'webp') return 'image/webp';
+      return '';
+    }
+
+    async function readHistoricalIneCandidates() {
+      const selected = Array.from(document.getElementById('historicalIneFiles').files || []);
+      if (!selected.length) throw new Error('Selecciona el ZIP original o las imágenes de INE.');
+      const allowed = new Set([
+        ...state.data.history.map(item => String(item.contractNumber || '').toUpperCase()),
+        ...state.data.contracts.map(item => String(item.contractNumber || '').toUpperCase())
+      ]);
+      const byContract = new Map();
+      let skipped = 0;
+
+      const includeFile = file => {
+        const contractNumber = historicalIneNumberFromName(file.name);
+        if (!contractNumber || !allowed.has(contractNumber) || !historicalImageType(file.name)) {
+          skipped += 1;
+          return;
+        }
+        if (byContract.has(contractNumber)) throw new Error(`${contractNumber}: hay más de una imagen de INE en la selección.`);
+        byContract.set(contractNumber, { contractNumber, file });
+      };
+
+      for (const file of selected) {
+        const isZip = /\.zip$/i.test(file.name) || file.type === 'application/zip';
+        if (!isZip) {
+          includeFile(file);
+          continue;
+        }
+        if (!window.JSZip) throw new Error('No se pudo cargar el lector de ZIP. Recarga la página e inténtalo otra vez.');
+        const archive = await window.JSZip.loadAsync(file);
+        const entries = Object.values(archive.files).filter(entry => !entry.dir && historicalImageType(entry.name));
+        for (const entry of entries) {
+          const type = historicalImageType(entry.name);
+          const blob = await entry.async('blob');
+          const name = entry.name.split(/[\\/]/).pop();
+          includeFile(new File([blob], name, { type }));
+        }
+      }
+      if (!byContract.size) throw new Error('No se encontraron imágenes “C.#### INE” para contratos ya indexados.');
+      return { candidates:Array.from(byContract.values()), skipped };
+    }
+
+    document.getElementById('importHistoricalIneButton').addEventListener('click', async () => {
+      if (state.isDemo) return toast('La importación privada solo está disponible después de conectar Google.', true);
+      showLoading('Preparando las identificaciones privadas…');
+      try {
+        const batch = await readHistoricalIneCandidates();
+        let imported = 0;
+        let existing = 0;
+        let errors = 0;
+        for (let index = 0; index < batch.candidates.length; index += 1) {
+          const candidate = batch.candidates[index];
+          document.getElementById('loadingText').textContent = `Resguardando INE ${index + 1} de ${batch.candidates.length}…`;
+          try {
+            const ineDataUrl = await fileToCompressedDataUrl(candidate.file);
+            const result = await callServer('importHistoricalIne', {
+              contractNumber:candidate.contractNumber,
+              ineDataUrl
+            });
+            if (result?.status === 'YA_RESGUARDADA') existing += 1;
+            else imported += 1;
+          } catch (error) {
+            errors += 1;
+            console.error(`No se pudo resguardar ${candidate.contractNumber}:`, error.message || error);
+          }
+        }
+        document.getElementById('historicalIneFiles').value = '';
+        const message = `INE privadas: ${imported} importadas, ${existing} ya existentes, ${errors} errores${batch.skipped ? ` y ${batch.skipped} archivos omitidos` : ''}.`;
+        await loadLatest({ message });
+      } catch (error) {
+        toast(error.message || 'No se pudieron importar las INE.', true);
+      } finally {
+        hideLoading();
+      }
+    });
+
+    document.getElementById('syncHistoricalIneButton').addEventListener('click', async () => {
+      showLoading('Localizando y protegiendo las INE existentes en Drive…');
+      try {
+        const summary = await callServer('syncHistoricalIneFiles');
+        const message = `INE protegidas: ${Number(summary?.secured || 0)}. Ya resguardadas: ${Number(summary?.existing || 0)}. Sin localizar: ${Number(summary?.missing || 0)}.`;
+        await loadLatest({ message });
+      } catch (error) {
+        toast(error.message || 'No se pudieron proteger las INE existentes.', true);
       } finally {
         hideLoading();
       }

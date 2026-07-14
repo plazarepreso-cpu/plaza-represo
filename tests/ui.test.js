@@ -35,6 +35,17 @@ assert.match(html, /callServer\('importHistoricalContracts'/, 'el panel envía �
 assert.match(html, /id="indexHistoricalButton"/, 'el propietario puede indexar contratos existentes sin duplicarlos');
 assert.match(html, /callServer\('indexHistoricalContracts'/, 'el índice histórico usa la operación segura sin crear archivos ni eventos');
 assert.match(html, /solo guarda el índice y no crea copias/, 'el panel explica cómo evitar duplicar el historial existente');
+assert.match(html, /const action = `[^`]*Ver datos/, 'todos los contratos muestran la acción Ver datos');
+assert.match(html, /client\.hasIne && state\.data\.user\.role === 'PROPIETARIO'/, 'el propietario puede abrir la INE desde clientes');
+assert.match(html, /Abrir INE privada/, 'el propietario puede abrir la INE desde el detalle del contrato');
+assert.match(html, /callServer\('getPrivateIneUrl', payload\)/, 'la INE se solicita al endpoint privado al abrirla');
+assert.match(html, /id="syncFilesButton"/, 'el panel incluye la vinculación de contratos de Drive');
+assert.match(html, /callServer\('syncExistingContractFiles'\)/, 'el botón de archivos llama a la sincronización segura');
+assert.match(html, /id="historicalIneFiles"[^>]*accept="application\/zip,\.zip/, 'el propietario puede seleccionar un ZIP de INE históricas');
+assert.match(html, /window\.JSZip\.loadAsync\(file\)/, 'el ZIP se procesa localmente antes de importar');
+assert.match(html, /callServer\('importHistoricalIne'/, 'cada INE aprobada se envía al resguardo privado');
+assert.match(html, /id="syncHistoricalIneButton"/, 'las INE que ya existen en Drive pueden protegerse sin volver a subirlas');
+assert.match(html, /target="_top"/, 'los archivos de Drive abren sin depender de ventanas emergentes bloqueadas');
 
 function extractFunction(source, name) {
   const start = source.indexOf(`function ${name}(`);
