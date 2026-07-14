@@ -329,6 +329,34 @@ test('addPayment bloquea, redondea, persiste requestId y no duplica un reintento
   assert.strictEqual(state.lockReleases, 2);
 });
 
+test('addPayment liquida un contrato sin crear otro ni reemplazar su PDF', () => {
+  seedContract({ currentPdfFileId:'contrato-original-ficticio.pdf' });
+
+  const result = clone(context.addPayment({
+    requestId: 'solicitud-liquidacion-ficticia-001',
+    contractId: 'contrato-ficticio-001',
+    date: '2026-07-13',
+    amount: 2499.9,
+    method: 'Transferencia ficticia',
+    note: 'Liquidación del saldo'
+  }));
+
+  assert.strictEqual(result.contract.contractNumber, 'C.9001');
+  assert.strictEqual(result.contract.status, 'PAGADO');
+  assert.strictEqual(result.contract.paid, 3500);
+  assert.strictEqual(result.contract.balance, 0);
+  assert.strictEqual(result.contract.currentPdfFileId, 'contrato-original-ficticio.pdf');
+  assert.strictEqual(result.payment.status, 'COMPLETADO');
+  assert.strictEqual(result.payment.newPaid, 3500);
+  assert.strictEqual(result.payment.newBalance, 0);
+  assert.strictEqual(state.sheets.Contratos.length, 1);
+  assert.strictEqual(state.contractPdfCalls.length, 0);
+  assert.strictEqual(state.receiptCalls.length, 1);
+  assert.strictEqual(state.calendarUpdates.length, 1);
+  assert.strictEqual(state.calendarUpdates[0].status, 'PAGADO');
+  assert.strictEqual(state.calendarUpdates[0].balance, 0);
+});
+
 test('addHistoricalPayment registra C.2623, crea un recibo controlado y no duplica un reintento', () => {
   seedHistoricalContract();
   const payload = {

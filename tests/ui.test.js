@@ -52,6 +52,11 @@ assert.match(html, /window\.open\(safeUrl, '_blank'/, 'los archivos de Drive se 
 assert.match(html, /fallback\.target = '_blank'/, 'el respaldo también conserva el panel abierto');
 assert.doesNotMatch(html, /fallback\.target = '_top'/, 'ningún respaldo reemplaza el panel actual');
 assert.match(html, /callServer\(payload\.paymentSource === 'ARCHIVO_ANTERIOR' \? 'addHistoricalPayment' : 'addPayment', payload\)/, 'los contratos históricos aceptan pagos desde el panel');
+assert.match(html, /data-register-payment-id/, 'cada contrato con saldo puede iniciar el registro de pago desde su propia fila');
+assert.match(html, /function prepareLiquidationPayment\(/, 'el panel prepara la liquidación desde un contrato existente');
+assert.match(html, /Liquidación del contrato/, 'la liquidación se identifica correctamente en el recibo y el historial');
+assert.match(html, /data-payment-balance/, 'el pago no puede rebasar el saldo pendiente del contrato seleccionado');
+assert.match(html, /LIQUIDADO/, 'un contrato pagado se presenta como liquidado para el equipo');
 
 function extractFunction(source, name) {
   const start = source.indexOf(`function ${name}(`);

@@ -90,7 +90,7 @@
     .money-row strong { white-space: nowrap; }
     .status { display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 9px; font-size: 10px; font-weight: 850; letter-spacing: .04em; }
     .status.CONFIRMADO { color: #9a3412; background: #ffedd5; }
-    .status.PAGADO, .status.COMPLETADO { color: #166534; background: #dcfce7; }
+    .status.PAGADO, .status.LIQUIDADO, .status.COMPLETADO { color: #166534; background: #dcfce7; }
     .status.CALENDARIO { color: #075985; background: #e0f2fe; }
     .status.ANTERIOR { color: #7c2d12; background: #ffedd5; }
     .status.CANCELADO { color: #991b1b; background: #fee2e2; }
@@ -325,7 +325,7 @@
         </section>
 
         <section class="view owner-only" id="view-contracts">
-          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios.</p></div><div class="filters"><button class="btn btn-ghost owner-only" type="button" id="syncFilesButton">Vincular archivos de Drive</button><div><label class="sr-only" for="contractSearch">Buscar contrato</label><input id="contractSearch" placeholder="Buscar número o cliente"></div><div><label class="sr-only" for="contractStatus">Filtrar por estado</label><select id="contractStatus"><option value="">Todos</option><option>CONFIRMADO</option><option>PAGADO</option><option>CANCELADO</option><option>CALENDARIO</option><option>ERROR</option></select></div></div></div>
+          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios. Usa “Liquidar saldo” para registrar el pago final sin crear otro contrato.</p></div><div class="filters"><button class="btn btn-ghost owner-only" type="button" id="syncFilesButton">Vincular archivos de Drive</button><div><label class="sr-only" for="contractSearch">Buscar contrato</label><input id="contractSearch" placeholder="Buscar número o cliente"></div><div><label class="sr-only" for="contractStatus">Filtrar por estado</label><select id="contractStatus"><option value="">Todos</option><option>CONFIRMADO</option><option value="PAGADO">LIQUIDADO</option><option>CANCELADO</option><option>CALENDARIO</option><option>ERROR</option></select></div></div></div>
           <div class="card table-wrap"><table class="data"><thead><tr><th>Contrato</th><th>Evento</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th></th></tr></thead><tbody id="contractsBody"></tbody></table></div>
         </section>
 
@@ -333,9 +333,10 @@
           <div class="page-head"><div><h3>Pagos y recibos</h3><p>El contrato original se conserva; cada abono genera historial. También puedes cobrar contratos anteriores ya indexados.</p></div></div>
           <div class="grid dashboard-grid">
             <form class="card form-card owner-only" id="paymentForm">
-              <div class="card-head"><h4>Registrar abono</h4></div>
+              <div class="card-head"><h4>Registrar pago</h4></div>
               <div class="card-body form-grid">
                 <div class="field full"><label for="paymentContract">Contrato</label><select name="contractId" id="paymentContract" required></select></div>
+                <div class="field full" id="paymentBalanceHint" style="color:var(--muted);font-size:13px" aria-live="polite"></div>
                 <div class="field half"><label for="paymentDate">Fecha</label><input id="paymentDate" name="date" type="date" required></div>
                 <div class="field half"><label for="paymentAmount">Cantidad</label><input id="paymentAmount" name="amount" type="number" min="0.01" step="0.01" required></div>
                 <div class="field half"><label for="paymentMethod">Método</label><select id="paymentMethod" name="method"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option></select></div>
@@ -422,6 +423,8 @@
       toastTimer: null,
       automationLastSummary: null,
       automationLastRunAt: '',
+      paymentReturnView: '',
+      paymentReturnContractId: '',
       formDirty: { contract: false, payment: false, access: false, edit: false }
     };
     const viewTitles = { dashboard: 'Resumen general', 'new-contract': 'Nuevo contrato', agenda: 'Agenda compartida', contracts: 'Contratos', payments: 'Pagos y recibos', clients: 'Clientes', access: 'Accesos del equipo', automations: 'Automatizaciones' };
@@ -871,6 +874,16 @@
     }
 
     function statusClass(status) { return String(status || '').toUpperCase().replace(/[^A-Z0-9_-]/g, ''); }
+    function contractStatusLabel(contract) {
+      const status = String(contract?.status || contract || '').toUpperCase();
+      return status === 'PAGADO' && Number(contract?.balance || 0) <= 0 ? 'LIQUIDADO' : status;
+    }
+    function canRegisterPayment(contract) {
+      return state.data?.user?.role === 'PROPIETARIO'
+        && ['CONTRATO', 'ARCHIVO_ANTERIOR'].includes(String(contract?.source || ''))
+        && !NON_OPERATIONAL_STATUSES.has(String(contract?.status || '').toUpperCase())
+        && Number(contract?.balance) > 0;
+    }
     function operationalContracts() { return state.data.contracts.filter(contract => !NON_OPERATIONAL_STATUSES.has(String(contract.status).toUpperCase())); }
     function agendaKey(item) {
       const contractNumber = String(item.contractNumber || '').trim().toUpperCase();
@@ -940,7 +953,7 @@
     function agendaName(item) { return item.clientName || item.title || item.contractNumber || 'Evento'; }
     function agendaBadge(item) {
       const status = String(item.status || 'CONFIRMADO').toUpperCase();
-      if (status === 'CANCELADO' || item.source === 'CONTRATO') return status;
+      if (status === 'CANCELADO' || item.source === 'CONTRATO') return contractStatusLabel(item);
       return item.source === 'ARCHIVO_ANTERIOR' ? 'ANTERIOR' : 'CALENDARIO';
     }
     function compareEventsAscending(a, b) { return `${a.eventDate || ''} ${a.startTime || ''}`.localeCompare(`${b.eventDate || ''} ${b.startTime || ''}`); }
@@ -1141,20 +1154,23 @@
         .filter(contract => (!query || `${contract.contractNumber} ${contract.clientName}`.toLowerCase().includes(query)) && (!statusFilter || contract.status === statusFilter))
         .sort(compareEventsDescending);
       document.getElementById('contractsBody').innerHTML = rows.map(contract => {
-        const status = String(contract.status || '');
+        const status = contractStatusLabel(contract);
         const pdfLink = driveFileLink(contract.currentPdfFileId, 'Abrir archivo');
         const managed = contract.source === 'CONTRATO';
         const sourceLabel = managed ? `Versión ${contract.version || 1}` : (contract.source === 'ARCHIVO_ANTERIOR' ? 'Contrato anterior' : 'Registrado en Calendar');
         const missingFile = managed || contract.currentPdfFileId ? '' : '<span style="color:var(--muted);font-size:12px">Archivo no vinculado</span>';
-        const action = `<button class="btn btn-ghost btn-small" type="button" data-contract-id="${escapeHtml(contract.id)}">Ver datos</button>${pdfLink}${missingFile}`;
+        const paymentAction = canRegisterPayment(contract)
+          ? `<button class="btn btn-primary btn-small" type="button" data-register-payment-id="${escapeHtml(contract.id)}">Liquidar saldo</button>`
+          : '';
+        const action = `<button class="btn btn-ghost btn-small" type="button" data-contract-id="${escapeHtml(contract.id)}">Ver datos</button>${paymentAction}${pdfLink}${missingFile}`;
         const amount = value => value === '' || value === null || value === undefined ? '—' : money(value);
         return `<tr><td><strong>${escapeHtml(contract.contractNumber)}</strong><br><small>${escapeHtml(sourceLabel)}</small></td><td>${escapeHtml(contract.eventDate || '—')}<br><small>${escapeHtml(contract.startTime || '—')}–${escapeHtml(contract.endTime || '—')}</small></td><td>${escapeHtml(contract.clientName || 'Sin nombre registrado')}</td><td>${amount(contract.total)}</td><td>${amount(contract.paid)}</td><td><strong>${amount(contract.balance)}</strong></td><td><span class="status ${statusClass(status)}">${escapeHtml(status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap">${action}</div></td></tr>`;
       }).join('') || '<tr><td colspan="8" class="empty">No se encontraron contratos.</td></tr>';
     }
 
-    function renderPayments() {
+    function renderPayments(preferredContractId = '') {
       const select = document.getElementById('paymentContract');
-      const previousSelection = select.value;
+      const previousSelection = preferredContractId || select.value;
       const available = contractItems()
         .filter(contract => ['CONTRATO', 'ARCHIVO_ANTERIOR'].includes(contract.source))
         .filter(contract => !NON_OPERATIONAL_STATUSES.has(String(contract.status).toUpperCase()))
@@ -1163,9 +1179,10 @@
       select.innerHTML = available.map(contract => {
         const source = contract.source === 'ARCHIVO_ANTERIOR' ? 'ARCHIVO_ANTERIOR' : 'CONTRATO';
         const origin = source === 'ARCHIVO_ANTERIOR' ? 'contrato anterior' : 'contrato actual';
-        return `<option value="${escapeHtml(contract.id)}" data-payment-source="${source}">${escapeHtml(contract.contractNumber)} · ${escapeHtml(contract.clientName)} · saldo ${money(contract.balance)} · ${origin}</option>`;
+        return `<option value="${escapeHtml(contract.id)}" data-payment-source="${source}" data-payment-balance="${escapeHtml(roundMoney(contract.balance))}">${escapeHtml(contract.contractNumber)} · ${escapeHtml(contract.clientName)} · saldo ${money(contract.balance)} · ${origin}</option>`;
       }).join('') || '<option value="">No hay saldos pendientes</option>';
       if (available.some(contract => String(contract.id) === previousSelection)) select.value = previousSelection;
+      updatePaymentSelection();
       const payments = [...state.data.payments].sort(comparePaymentsDescending).slice(0, 12);
       document.getElementById('paymentsList').innerHTML = payments.map(payment => {
         const paymentStatus = String(payment.status || 'COMPLETADO').toUpperCase();
@@ -1174,6 +1191,45 @@
         const statusBadge = `<span class="status ${statusClass(paymentStatus)}">${escapeHtml(paymentStatus)}</span>`;
         return `<div class="money-row"><div><strong>${escapeHtml(payment.contractNumber)}</strong> ${statusBadge}<br><small>${escapeHtml(payment.date)} · ${escapeHtml(payment.method || '')}</small>${receiptLink ? `<div style="margin-top:6px">${receiptLink}</div>` : ''}</div><strong style="color:${completed ? 'var(--green)' : 'var(--red)'}">${money(payment.amount)}</strong></div>`;
       }).join('') || '<div class="empty">No hay pagos registrados.</div>';
+    }
+
+    function updatePaymentSelection({ fillLiquidation = false } = {}) {
+      const form = document.getElementById('paymentForm');
+      const select = document.getElementById('paymentContract');
+      const amountInput = document.getElementById('paymentAmount');
+      const noteInput = document.getElementById('paymentNote');
+      const hint = document.getElementById('paymentBalanceHint');
+      const selected = select.selectedOptions?.[0];
+      const balance = roundMoney(Number(selected?.dataset.paymentBalance || 0));
+      if (!form || !selected || !Number.isFinite(balance) || balance <= 0) {
+        amountInput.removeAttribute('max');
+        hint.textContent = 'Selecciona un contrato con saldo pendiente para registrar un pago.';
+        return;
+      }
+      amountInput.max = String(balance);
+      hint.textContent = `Saldo pendiente de este contrato: ${money(balance)}. Puedes registrar un abono o liquidarlo completo.`;
+      if (fillLiquidation) {
+        amountInput.value = String(balance);
+        noteInput.value = 'Liquidación del contrato';
+        state.formDirty.payment = true;
+      }
+    }
+
+    function prepareLiquidationPayment(id) {
+      const contract = contractItems().find(item => String(item.id) === String(id));
+      if (!contract || !canRegisterPayment(contract)) {
+        return toast('Este contrato no tiene un saldo disponible para registrar.', true);
+      }
+      const dialog = document.getElementById('contractDialog');
+      if (dialog.open) dialog.close();
+      state.paymentReturnView = 'contracts';
+      state.paymentReturnContractId = String(contract.id);
+      renderPayments(String(contract.id));
+      switchView('payments');
+      updatePaymentSelection({ fillLiquidation:true });
+      document.getElementById('paymentDate').value = today();
+      document.getElementById('paymentAmount').focus();
+      toast(`Pago final preparado para ${contract.contractNumber}: ${money(contract.balance)}.`);
     }
 
     function renderClients() {
@@ -1435,7 +1491,7 @@
       if (!contract) return toast('No se encontró el contrato seleccionado.', true);
       state.selectedContract = contract;
       state.formDirty.edit = false;
-      document.getElementById('dialogTitle').textContent = `${contract.contractNumber} · ${contract.status}`;
+      document.getElementById('dialogTitle').textContent = `${contract.contractNumber} · ${contractStatusLabel(contract)}`;
       const managed = contract.source === 'CONTRATO';
       const editable = state.data.user.role === 'PROPIETARIO' && managed && contract.status !== 'CANCELADO';
       const fields = [
@@ -1452,6 +1508,9 @@
           ? externalOpenButton(directIneUrl, 'Abrir INE privada')
           : `<button class="btn btn-ghost btn-small" type="button" ${managed ? `data-ine-contract-id="${escapeHtml(contract.id)}"` : `data-ine-client-id="${escapeHtml(client?.id || '')}"`}>Abrir INE privada</button>`)
         : '';
+      const paymentButton = canRegisterPayment(contract)
+        ? `<button class="btn btn-primary btn-small" type="button" data-register-payment-id="${escapeHtml(contract.id)}">Liquidar saldo ${money(contract.balance)}</button>`
+        : (contractStatusLabel(contract) === 'LIQUIDADO' ? '<span class="status LIQUIDADO">LIQUIDADO</span>' : '');
       const versionText = managed ? `Versión actual: <strong>${escapeHtml(contract.version || 1)}</strong>` : 'Registro anterior de solo lectura';
       const fileStatus = pdfLink ? `<div style="margin-top:10px">${pdfLink}</div>` : '<div style="margin-top:10px;color:var(--muted)">Archivo original todavía no vinculado.</div>';
       document.getElementById('dialogFields').innerHTML = `<input type="hidden" name="id" value="${escapeHtml(contract.id)}"><input type="hidden" name="expectedVersion" value="${escapeHtml(contract.version || '')}">` + fields.map(([name, label, value, type], index) => {
@@ -1460,7 +1519,7 @@
         const step = type === 'number' ? ' step="0.01" min="1"' : '';
         const required = editable && name !== 'overrideReason' ? 'required' : '';
         return `<div class="field ${fieldClass}"><label for="${inputId}">${escapeHtml(label)}</label><input id="${inputId}" name="${name}" type="${type}" value="${escapeHtml(value ?? '')}"${step} ${editable ? required : 'disabled'}></div>`;
-      }).join('') + `<div class="field full warning">Pagado: <strong>${money(contract.paid)}</strong> · Saldo: <strong>${money(contract.balance)}</strong> · ${versionText}${fileStatus}${ineButton ? `<div style="margin-top:10px">${ineButton}</div>` : ''}</div>`;
+      }).join('') + `<div class="field full warning">Pagado: <strong>${money(contract.paid)}</strong> · Saldo: <strong>${money(contract.balance)}</strong> · ${versionText}${paymentButton ? `<div style="margin-top:10px">${paymentButton}</div>` : ''}${fileStatus}${ineButton ? `<div style="margin-top:10px">${ineButton}</div>` : ''}</div>`;
       document.getElementById('cancelControls').style.display = editable ? '' : 'none';
       document.getElementById('cancelReason').value = '';
       document.querySelector('#editForm button[type="submit"]').style.display = editable ? '' : 'none';
@@ -1490,12 +1549,22 @@
       if (button) openPrivateIne({ clientId:button.dataset.ineClientId });
     });
     document.getElementById('dialogFields').addEventListener('click', event => {
+      const paymentButton = event.target.closest('[data-register-payment-id]');
+      if (paymentButton) {
+        prepareLiquidationPayment(paymentButton.dataset.registerPaymentId);
+        return;
+      }
       const button = event.target.closest('[data-ine-client-id],[data-ine-contract-id]');
       if (!button) return;
       if (button.dataset.ineContractId) openPrivateIne({ id:button.dataset.ineContractId });
       else openPrivateIne({ clientId:button.dataset.ineClientId });
     });
     document.getElementById('contractsBody').addEventListener('click', event => {
+      const paymentButton = event.target.closest('[data-register-payment-id]');
+      if (paymentButton) {
+        prepareLiquidationPayment(paymentButton.dataset.registerPaymentId);
+        return;
+      }
       const button = event.target.closest('[data-contract-id]');
       if (button) openContract(button.dataset.contractId);
     });
@@ -1533,6 +1602,11 @@
     const accessForm = document.getElementById('accessForm');
     paymentForm.elements.namedItem('date').value = today();
     contractForm.elements.namedItem('elaborationDate').value = today();
+    paymentForm.elements.namedItem('contractId').addEventListener('change', () => {
+      state.paymentReturnView = '';
+      state.paymentReturnContractId = '';
+      updatePaymentSelection();
+    });
     ['eventDate', 'initialDeposit'].forEach(name => contractForm.elements.namedItem(name).addEventListener('input', updatePaymentPreview));
     contractForm.elements.namedItem('total').addEventListener('input', event => { event.target.dataset.edited = 'true'; updatePaymentPreview(); });
     setFormDirtyTracking('contractForm', 'contract');
@@ -1625,7 +1699,10 @@
 
     paymentForm.addEventListener('reset', () => {
       clearPendingRequestId('payment');
-      setTimeout(() => { paymentForm.elements.namedItem('date').value = today(); }, 0);
+      setTimeout(() => {
+        paymentForm.elements.namedItem('date').value = today();
+        updatePaymentSelection();
+      }, 0);
     });
 
     contractForm.addEventListener('submit', async event => {
@@ -1664,10 +1741,15 @@
       payload.requestId = getOrCreatePendingRequestId('payment', fingerprint);
       showLoading('Registrando pago y generando recibo…');
       try {
-        await callServer(payload.paymentSource === 'ARCHIVO_ANTERIOR' ? 'addHistoricalPayment' : 'addPayment', payload);
+        const result = await callServer(payload.paymentSource === 'ARCHIVO_ANTERIOR' ? 'addHistoricalPayment' : 'addPayment', payload);
+        const wasLiquidated = Number(result?.contract?.balance) === 0;
+        const returnView = String(payload.contractId) === state.paymentReturnContractId ? state.paymentReturnView : '';
         clearPendingRequestId('payment');
         event.target.reset();
-        await loadLatest({ message:'Pago y recibo guardados.' });
+        state.paymentReturnView = '';
+        state.paymentReturnContractId = '';
+        await loadLatest({ message:wasLiquidated ? 'Pago final guardado. El contrato quedó liquidado.' : 'Pago y recibo guardados.' });
+        if (returnView === 'contracts') switchView('contracts');
       } catch (error) {
         toast(error.message, true);
       } finally {
