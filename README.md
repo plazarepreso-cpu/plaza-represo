@@ -7,7 +7,7 @@ Aplicación web gratuita para administrar clientes, contratos, pagos y agenda de
 - Un solo panel adaptable a computadora y celular.
 - Roles `PROPIETARIO` y `CONSULTA` validados también en el servidor.
 - Captura de INE con OCR gratuito en el navegador y confirmación manual.
-- Numeración automática desde `C.2625`.
+- Numeración automática desde `C.2626`, después de incorporar los contratos existentes hasta `C.2625`.
 - Tarifas automáticas: $3,500 entre semana y $4,500 sábado o domingo.
 - Bloqueo de fechas ocupadas y validación de eventos de cinco horas.
 - Contrato PDF, recibos, historial de pagos y saldo calculado.

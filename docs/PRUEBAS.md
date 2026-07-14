@@ -11,7 +11,7 @@ Ejecuta `pnpm test` antes de compartir cambios. La suite usa exclusivamente nomb
 - El abono no puede superar el total y los pagos posteriores no pueden superar el saldo.
 - Una fecha confirmada no puede reservarse nuevamente.
 - Un contrato cancelado libera la fecha.
-- La numeración comienza en C.2625 y se incrementa bajo bloqueo.
+- La instalación de producción comienza en C.2626 y la numeración se incrementa bajo bloqueo.
 - Fechas inexistentes, horas fuera de rango e importes no finitos son rechazados.
 - Los importes se normalizan a centavos para liquidar el saldo exactamente.
 - Un `requestId` repetido no registra dos veces el mismo pago.

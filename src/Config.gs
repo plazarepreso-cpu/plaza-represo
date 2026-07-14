@@ -1,7 +1,7 @@
 const APP_CONFIG = Object.freeze({
   APP_NAME: 'Plaza Represo',
   TIME_ZONE: 'America/Hermosillo',
-  START_CONTRACT_NUMBER: 2625,
+  START_CONTRACT_NUMBER: 2626,
   WEEKDAY_RATE: 3500,
   WEEKEND_RATE: 4500,
   EVENT_HOURS: 5,
