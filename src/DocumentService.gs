@@ -1,3 +1,16 @@
+const DOCUMENT_THEME = Object.freeze({
+  ink: '#161616',
+  inkSoft: '#2B2B2B',
+  gold: '#F4B41A',
+  goldSoft: '#FFF4D6',
+  paper: '#FFFCF6',
+  line: '#D8C89B',
+  muted: '#66605A',
+  red: '#C52222',
+  green: '#15803D',
+  white: '#FFFFFF'
+});
+
 function styleText_(paragraph, options) {
   const text = paragraph.editAsText();
   if (options.fontSize) text.setFontSize(options.fontSize);
@@ -5,22 +18,261 @@ function styleText_(paragraph, options) {
   if (options.color) text.setForegroundColor(options.color);
   if (options.fontFamily) text.setFontFamily(options.fontFamily);
   if (options.align) paragraph.setAlignment(options.align);
+  if (options.lineSpacing) paragraph.setLineSpacing(options.lineSpacing);
   if (options.spacingAfter !== undefined) paragraph.setSpacingAfter(options.spacingAfter);
   if (options.spacingBefore !== undefined) paragraph.setSpacingBefore(options.spacingBefore);
   return paragraph;
 }
 
-function styleCell_(cell, background, color, size, bold) {
-  cell.setBackgroundColor(background);
-  const paragraph = cell.getChild(0).asParagraph();
-  styleText_(paragraph, {
+function setCellText_(cell, value, options) {
+  const settings = Object.assign({
+    background: DOCUMENT_THEME.white,
+    color: DOCUMENT_THEME.ink,
     fontFamily: 'Arial',
-    fontSize: size,
-    bold,
-    color,
-    spacingBefore: 2,
-    spacingAfter: 2
+    fontSize: 8,
+    bold: false,
+    paddingTop: 5,
+    paddingBottom: 5,
+    paddingLeft: 7,
+    paddingRight: 7,
+    align: DocumentApp.HorizontalAlignment.LEFT,
+    lineSpacing: 1.05
+  }, options || {});
+  cell.setBackgroundColor(settings.background);
+  cell.setPaddingTop(settings.paddingTop);
+  cell.setPaddingBottom(settings.paddingBottom);
+  cell.setPaddingLeft(settings.paddingLeft);
+  cell.setPaddingRight(settings.paddingRight);
+  cell.setVerticalAlignment(DocumentApp.VerticalAlignment.CENTER);
+  const paragraph = cell.getChild(0).asParagraph();
+  paragraph.setText(String(value || ''));
+  styleText_(paragraph, settings);
+  return paragraph;
+}
+
+function styleFragments_(paragraph, fragments) {
+  const fullText = paragraph.getText();
+  const text = paragraph.editAsText();
+  (fragments || []).forEach(fragment => {
+    let start = fullText.indexOf(fragment.text);
+    while (start >= 0) {
+      const end = start + fragment.text.length - 1;
+      if (fragment.bold !== undefined) text.setBold(start, end, fragment.bold);
+      if (fragment.color) text.setForegroundColor(start, end, fragment.color);
+      if (fragment.fontSize) text.setFontSize(start, end, fragment.fontSize);
+      start = fullText.indexOf(fragment.text, end + 1);
+    }
   });
+}
+
+function printableDate_(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return String(value || '');
+  const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  return `${Number(match[3])} de ${months[Number(match[2]) - 1]} de ${match[1]}`;
+}
+
+function printableTime_(value) {
+  const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return String(value || '');
+  const hour = Number(match[1]);
+  const suffix = hour >= 12 ? 'p.m.' : 'a.m.';
+  const twelveHour = hour % 12 || 12;
+  return `${twelveHour}:${match[2]} ${suffix}`;
+}
+
+function appendBrandHeader_(body, rightLabel, rightValue) {
+  const table = body.appendTable([['', '']]);
+  table.setBorderColor(DOCUMENT_THEME.gold).setBorderWidth(1.4);
+  table.setColumnWidth(0, 400).setColumnWidth(1, 156);
+
+  const brandCell = table.getCell(0, 0);
+  brandCell.setBackgroundColor(DOCUMENT_THEME.ink)
+    .setPaddingTop(7).setPaddingBottom(7).setPaddingLeft(14).setPaddingRight(10)
+    .setVerticalAlignment(DocumentApp.VerticalAlignment.CENTER);
+  const plaza = brandCell.getChild(0).asParagraph();
+  plaza.setText('PLAZA');
+  styleText_(plaza, {
+    fontFamily: 'Arial', fontSize: 8, bold: true, color: DOCUMENT_THEME.white,
+    spacingBefore: 0, spacingAfter: 0
+  });
+  const brand = brandCell.appendParagraph('REPRESO  EVENTOS');
+  styleText_(brand, {
+    fontFamily: 'Arial', fontSize: 21, bold: true, color: DOCUMENT_THEME.gold,
+    spacingBefore: 0, spacingAfter: 0
+  });
+  styleFragments_(brand, [{ text: 'EVENTOS', fontSize: 8, color: DOCUMENT_THEME.white }]);
+
+  const badgeCell = table.getCell(0, 1);
+  badgeCell.setBackgroundColor(DOCUMENT_THEME.inkSoft)
+    .setPaddingTop(7).setPaddingBottom(7).setPaddingLeft(8).setPaddingRight(8)
+    .setVerticalAlignment(DocumentApp.VerticalAlignment.CENTER);
+  const badgeLabel = badgeCell.getChild(0).asParagraph();
+  badgeLabel.setText(rightLabel);
+  styleText_(badgeLabel, {
+    fontFamily: 'Arial', fontSize: 7, bold: true, color: DOCUMENT_THEME.white,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 0, spacingAfter: 1
+  });
+  styleText_(badgeCell.appendParagraph(rightValue), {
+    fontFamily: 'Arial', fontSize: 17, bold: true, color: DOCUMENT_THEME.gold,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 0, spacingAfter: 0
+  });
+  return table;
+}
+
+function appendSectionBar_(body, title) {
+  const table = body.appendTable([[title]]);
+  table.setBorderColor(DOCUMENT_THEME.gold).setBorderWidth(1);
+  setCellText_(table.getCell(0, 0), title, {
+    background: DOCUMENT_THEME.ink,
+    color: DOCUMENT_THEME.white,
+    fontSize: 9,
+    bold: true,
+    paddingTop: 3,
+    paddingBottom: 3,
+    align: DocumentApp.HorizontalAlignment.CENTER
+  });
+  return table;
+}
+
+function appendSpacer_(body, points) {
+  const paragraph = body.appendParagraph('');
+  paragraph.setSpacingBefore(0).setSpacingAfter(points);
+  return paragraph;
+}
+
+function appendContractSummary_(body, contract) {
+  const table = body.appendTable([
+    ['DATOS DEL EVENTO', 'DATOS DEL CLIENTE', 'PAGOS'],
+    [
+      `DÍA  ${contract.eventDay}\nFECHA  ${printableDate_(contract.eventDate)}\nHORARIO  ${printableTime_(contract.startTime)} - ${printableTime_(contract.endTime)}\nEVENTO  ${contract.eventType}`,
+      `NOMBRE  ${contract.clientName}\nDOMICILIO  ${contract.address}\nTELÉFONO  ${contract.phone}`,
+      `PAGO TOTAL  ${money_(contract.total)}\nABONO INICIAL  ${money_(contract.initialDeposit)}\nSALDO  ${money_(contract.balance)}\n${Number(contract.balance) === 0 ? 'PAGADO' : 'SALDO PENDIENTE'}`
+    ]
+  ]);
+  table.setBorderColor(DOCUMENT_THEME.line).setBorderWidth(0.8);
+  table.setColumnWidth(0, 185).setColumnWidth(1, 211).setColumnWidth(2, 160);
+
+  for (let column = 0; column < 3; column += 1) {
+    setCellText_(table.getCell(0, column), table.getCell(0, column).getText(), {
+      background: DOCUMENT_THEME.ink,
+      color: DOCUMENT_THEME.white,
+      fontSize: 8,
+      bold: true,
+      paddingTop: 4,
+      paddingBottom: 4,
+      align: DocumentApp.HorizontalAlignment.CENTER
+    });
+    const detail = setCellText_(table.getCell(1, column), table.getCell(1, column).getText(), {
+      background: DOCUMENT_THEME.paper,
+      color: DOCUMENT_THEME.ink,
+      fontSize: column === 2 ? 8 : 7,
+      paddingTop: 6,
+      paddingBottom: 6,
+      lineSpacing: 1.12
+    });
+    styleFragments_(detail, [
+      { text: 'DÍA', bold: true, color: DOCUMENT_THEME.red },
+      { text: 'FECHA', bold: true, color: DOCUMENT_THEME.red },
+      { text: 'HORARIO', bold: true, color: DOCUMENT_THEME.red },
+      { text: 'EVENTO', bold: true, color: DOCUMENT_THEME.red },
+      { text: 'NOMBRE', bold: true, color: DOCUMENT_THEME.red },
+      { text: 'DOMICILIO', bold: true, color: DOCUMENT_THEME.red },
+      { text: 'TELÉFONO', bold: true, color: DOCUMENT_THEME.red },
+      { text: 'PAGO TOTAL', bold: true, color: DOCUMENT_THEME.red },
+      { text: 'ABONO INICIAL', bold: true, color: DOCUMENT_THEME.red },
+      { text: 'SALDO', bold: true, color: DOCUMENT_THEME.red },
+      { text: Number(contract.balance) === 0 ? 'PAGADO' : 'SALDO PENDIENTE', bold: true, color: DOCUMENT_THEME.green }
+    ]);
+  }
+  return table;
+}
+
+function appendClauses_(body) {
+  appendSectionBar_(body, 'CLÁUSULAS');
+  const rows = CONTRACT_CLAUSES.map((clause, index) => [String(index + 1), clause]);
+  const table = body.appendTable(rows);
+  table.setBorderColor(DOCUMENT_THEME.line).setBorderWidth(0.45);
+  table.setColumnWidth(0, 30).setColumnWidth(1, 526);
+  rows.forEach((row, index) => {
+    setCellText_(table.getCell(index, 0), String(index + 1), {
+      background: DOCUMENT_THEME.ink,
+      color: DOCUMENT_THEME.gold,
+      fontSize: 9,
+      bold: true,
+      paddingTop: 2,
+      paddingBottom: 2,
+      paddingLeft: 2,
+      paddingRight: 2,
+      align: DocumentApp.HorizontalAlignment.CENTER
+    });
+    setCellText_(table.getCell(index, 1), row[1], {
+      background: index % 2 === 0 ? DOCUMENT_THEME.white : DOCUMENT_THEME.paper,
+      color: DOCUMENT_THEME.ink,
+      fontSize: 7,
+      paddingTop: 2,
+      paddingBottom: 2,
+      paddingLeft: 6,
+      paddingRight: 5,
+      lineSpacing: 1.02
+    });
+  });
+  return table;
+}
+
+function appendContractFooter_(body, contract) {
+  const deposit = body.appendTable([['SE APARTÓ CON LA CANTIDAD DE', `${money_(contract.initialDeposit)} M.N.`]]);
+  deposit.setBorderColor(DOCUMENT_THEME.gold).setBorderWidth(1.2);
+  deposit.setColumnWidth(0, 370).setColumnWidth(1, 186);
+  setCellText_(deposit.getCell(0, 0), 'SE APARTÓ CON LA CANTIDAD DE', {
+    background: DOCUMENT_THEME.ink,
+    color: DOCUMENT_THEME.white,
+    fontSize: 9,
+    bold: true,
+    paddingTop: 4,
+    paddingBottom: 4,
+    align: DocumentApp.HorizontalAlignment.CENTER
+  });
+  setCellText_(deposit.getCell(0, 1), `${money_(contract.initialDeposit)} M.N.`, {
+    background: DOCUMENT_THEME.gold,
+    color: DOCUMENT_THEME.ink,
+    fontSize: 11,
+    bold: true,
+    paddingTop: 4,
+    paddingBottom: 4,
+    align: DocumentApp.HorizontalAlignment.CENTER
+  });
+
+  styleText_(body.appendParagraph('PLAZA REPRESO AGRADECE SU PREFERENCIA'), {
+    fontFamily: 'Arial', fontSize: 8, bold: true, color: DOCUMENT_THEME.ink,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 2, spacingAfter: 2
+  });
+
+  const footer = body.appendTable([[
+    `DIRECCIÓN DEL SALÓN\n${APP_CONFIG.VENUE_ADDRESS}`,
+    `CAPACIDAD MÁXIMA\n${APP_CONFIG.MAX_CAPACITY} PERSONAS`
+  ]]);
+  footer.setBorderColor(DOCUMENT_THEME.ink).setBorderWidth(0.8);
+  footer.setColumnWidth(0, 390).setColumnWidth(1, 166);
+  const address = setCellText_(footer.getCell(0, 0), footer.getCell(0, 0).getText(), {
+    background: DOCUMENT_THEME.paper,
+    color: DOCUMENT_THEME.ink,
+    fontSize: 7,
+    paddingTop: 4,
+    paddingBottom: 4
+  });
+  const capacity = setCellText_(footer.getCell(0, 1), footer.getCell(0, 1).getText(), {
+    background: DOCUMENT_THEME.paper,
+    color: DOCUMENT_THEME.ink,
+    fontSize: 8,
+    bold: true,
+    paddingTop: 4,
+    paddingBottom: 4,
+    align: DocumentApp.HorizontalAlignment.CENTER
+  });
+  styleFragments_(address, [{ text: 'DIRECCIÓN DEL SALÓN', bold: true, color: DOCUMENT_THEME.red }]);
+  styleFragments_(capacity, [{ text: 'CAPACIDAD MÁXIMA', bold: true, color: DOCUMENT_THEME.red }]);
 }
 
 function buildContractDocument_(contract) {
@@ -29,72 +281,35 @@ function buildContractDocument_(contract) {
   body
     .setPageWidth(612)
     .setPageHeight(792)
-    .setMarginTop(24)
-    .setMarginBottom(24)
+    .setMarginTop(22)
+    .setMarginBottom(20)
     .setMarginLeft(28)
     .setMarginRight(28);
 
-  const header = body.appendTable([['PLAZA REPRESO\nEVENTOS', `CONTRATO No.\n${contract.contractNumber}`]]);
-  header.setBorderColor('#f59e0b').setBorderWidth(1.5);
-  header.setColumnWidth(0, 410).setColumnWidth(1, 146);
-  styleCell_(header.getCell(0, 0), '#111111', '#f59e0b', 24, true);
-  styleCell_(header.getCell(0, 1), '#111111', '#ffffff', 13, true);
-  header.getCell(0, 0).getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-  header.getCell(0, 1).getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-
+  appendBrandHeader_(body, 'CONTRATO No.', contract.contractNumber);
   styleText_(body.appendParagraph('CONTRATO DE ARRENDAMIENTO PARA SALÓN DE EVENTOS SOCIALES'), {
-    fontFamily: 'Arial', fontSize: 13, bold: true, color: '#111111',
-    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 6, spacingAfter: 2
+    fontFamily: 'Arial', fontSize: 11, bold: true, color: DOCUMENT_THEME.ink,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 5, spacingAfter: 1
   });
-  styleText_(body.appendParagraph('DENOMINADO “PLAZA REPRESO”'), {
-    fontFamily: 'Arial', fontSize: 14, bold: true, color: '#dc2626',
-    align: DocumentApp.HorizontalAlignment.CENTER, spacingAfter: 2
+  styleText_(body.appendParagraph('PLAZA REPRESO'), {
+    fontFamily: 'Arial', fontSize: 13, bold: true, color: DOCUMENT_THEME.red,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 0, spacingAfter: 1
   });
-  styleText_(body.appendParagraph(`NOGALES, SONORA A ${contract.elaborationDate}`), {
-    fontFamily: 'Arial', fontSize: 9, bold: true, color: '#333333',
-    align: DocumentApp.HorizontalAlignment.CENTER, spacingAfter: 5
+  const dateLine = body.appendParagraph(`NOGALES, SONORA  |  ${printableDate_(contract.elaborationDate).toUpperCase()}`);
+  styleText_(dateLine, {
+    fontFamily: 'Arial', fontSize: 8, bold: true, color: DOCUMENT_THEME.muted,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 0, spacingAfter: 4
   });
+  styleFragments_(dateLine, [{ text: printableDate_(contract.elaborationDate).toUpperCase(), color: DOCUMENT_THEME.red }]);
 
-  const info = body.appendTable([[`DATOS DEL EVENTO\n\nDía: ${contract.eventDay}\nFecha: ${contract.eventDate}\nHorario: ${contract.startTime} a ${contract.endTime}\nTipo: ${contract.eventType}`,
-    `DATOS DEL CLIENTE\n\nNombre: ${contract.clientName}\nDomicilio: ${contract.address}\nTeléfono: ${contract.phone}`,
-    `PAGOS\n\nTotal: ${money_(contract.total)}\nPagado: ${money_(contract.paid)}\nRestan: ${money_(contract.balance)}\n${Number(contract.balance) === 0 ? 'PAGADO' : 'SALDO PENDIENTE'}`]]);
-  info.setBorderColor('#ef4444').setBorderWidth(1);
-  [0, 1, 2].forEach(index => {
-    info.setColumnWidth(index, index === 1 ? 210 : 173);
-    styleCell_(info.getCell(0, index), '#fffaf5', '#171717', 8, false);
-    const p = info.getCell(0, index).getChild(0).asParagraph();
-    p.setLineSpacing(1.1);
-    p.editAsText().setBold(0, p.getText().split('\n')[0].length - 1, true);
+  appendContractSummary_(body, contract);
+  styleText_(body.appendParagraph('Se celebra este contrato entre el ARRENDADOR, Salón de Eventos Plaza Represo, y el ARRENDATARIO(A) antes mencionado, quienes aceptan las siguientes cláusulas:'), {
+    fontFamily: 'Arial', fontSize: 7, bold: false, color: DOCUMENT_THEME.ink,
+    align: DocumentApp.HorizontalAlignment.CENTER, lineSpacing: 1.05,
+    spacingBefore: 4, spacingAfter: 3
   });
-
-  styleText_(body.appendParagraph('CLÁUSULAS'), {
-    fontFamily: 'Arial', fontSize: 11, bold: true, color: '#ffffff',
-    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 6, spacingAfter: 3
-  }).setBackgroundColor('#111111');
-
-  const clauseRows = CONTRACT_CLAUSES.map((clause, index) => [String(index + 1), clause]);
-  const clauses = body.appendTable(clauseRows);
-  clauses.setBorderColor('#f59e0b').setBorderWidth(0.5);
-  clauses.setColumnWidth(0, 32).setColumnWidth(1, 524);
-  clauseRows.forEach((row, index) => {
-    styleCell_(clauses.getCell(index, 0), '#111111', '#f59e0b', 9, true);
-    styleCell_(clauses.getCell(index, 1), '#ffffff', '#222222', 7, false);
-    clauses.getCell(index, 0).getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-  });
-
-  const apart = body.appendTable([[`SE APARTÓ CON LA CANTIDAD DE: ${money_(contract.initialDeposit)} M.N.`]]);
-  apart.setBorderColor('#f59e0b').setBorderWidth(1.5);
-  styleCell_(apart.getCell(0, 0), '#111111', '#ffffff', 11, true);
-  apart.getCell(0, 0).getChild(0).asParagraph().setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-
-  styleText_(body.appendParagraph('¡¡¡PLAZA REPRESO AGRADECE SU PREFERENCIA!!!'), {
-    fontFamily: 'Arial', fontSize: 10, bold: true, color: '#111111',
-    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 2, spacingAfter: 2
-  });
-  styleText_(body.appendParagraph(`DIRECCIÓN: ${APP_CONFIG.VENUE_ADDRESS}   |   CAPACIDAD MÁXIMA: ${APP_CONFIG.MAX_CAPACITY} PERSONAS`), {
-    fontFamily: 'Arial', fontSize: 7, bold: true, color: '#dc2626',
-    align: DocumentApp.HorizontalAlignment.CENTER, spacingAfter: 0
-  });
+  appendClauses_(body);
+  appendContractFooter_(body, contract);
 
   doc.saveAndClose();
   return doc;
@@ -119,35 +334,101 @@ function generateContractPdf_(contract, folder) {
 function generateReceiptPdf_(contract, payment, folder) {
   const doc = DocumentApp.create(`Recibo ${contract.contractNumber} - ${payment.id}`);
   const body = doc.getBody();
-  body.setPageWidth(612).setPageHeight(792).setMarginTop(50).setMarginBottom(50).setMarginLeft(55).setMarginRight(55);
-  const header = body.appendTable([['PLAZA REPRESO', 'RECIBO DE PAGO']]);
-  header.setBorderColor('#f59e0b').setBorderWidth(1.5).setColumnWidth(0, 300).setColumnWidth(1, 202);
-  styleCell_(header.getCell(0, 0), '#111111', '#f59e0b', 20, true);
-  styleCell_(header.getCell(0, 1), '#111111', '#ffffff', 13, true);
-  styleText_(body.appendParagraph(`Contrato ${contract.contractNumber}`), {
-    fontFamily: 'Arial', fontSize: 15, bold: true, color: '#111111',
-    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 18, spacingAfter: 12
+  body
+    .setPageWidth(612)
+    .setPageHeight(792)
+    .setMarginTop(38)
+    .setMarginBottom(38)
+    .setMarginLeft(48)
+    .setMarginRight(48);
+
+  appendBrandHeader_(body, 'RECIBO', contract.contractNumber);
+  styleText_(body.appendParagraph('COMPROBANTE DE PAGO'), {
+    fontFamily: 'Arial', fontSize: 13, bold: true, color: DOCUMENT_THEME.ink,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 14, spacingAfter: 2
   });
+  styleText_(body.appendParagraph(`FOLIO ${String(payment.id || '').slice(0, 8).toUpperCase()}`), {
+    fontFamily: 'Arial', fontSize: 7, bold: true, color: DOCUMENT_THEME.muted,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 0, spacingAfter: 10
+  });
+
+  const amount = body.appendTable([['CANTIDAD RECIBIDA', money_(payment.amount)]]);
+  amount.setBorderColor(DOCUMENT_THEME.gold).setBorderWidth(1.2);
+  amount.setColumnWidth(0, 260).setColumnWidth(1, 256);
+  setCellText_(amount.getCell(0, 0), 'CANTIDAD RECIBIDA', {
+    background: DOCUMENT_THEME.ink,
+    color: DOCUMENT_THEME.white,
+    fontSize: 9,
+    bold: true,
+    paddingTop: 9,
+    paddingBottom: 9,
+    align: DocumentApp.HorizontalAlignment.CENTER
+  });
+  setCellText_(amount.getCell(0, 1), money_(payment.amount), {
+    background: DOCUMENT_THEME.gold,
+    color: DOCUMENT_THEME.ink,
+    fontSize: 17,
+    bold: true,
+    paddingTop: 7,
+    paddingBottom: 7,
+    align: DocumentApp.HorizontalAlignment.CENTER
+  });
+  appendSpacer_(body, 6);
+
   const rows = [
-    ['Cliente', contract.clientName],
-    ['Fecha de pago', payment.date],
-    ['Cantidad recibida', money_(payment.amount)],
-    ['Método', payment.method || 'No indicado'],
-    ['Concepto', payment.note || 'Abono al contrato'],
-    ['Total pagado', money_(payment.newPaid)],
-    ['Saldo restante', money_(payment.newBalance)]
+    ['CLIENTE', contract.clientName],
+    ['CONTRATO', contract.contractNumber],
+    ['FECHA DE PAGO', printableDate_(payment.date)],
+    ['MÉTODO', payment.method || 'No indicado'],
+    ['CONCEPTO', payment.note || 'Abono al contrato'],
+    ['TOTAL PAGADO', money_(payment.newPaid)],
+    ['SALDO RESTANTE', money_(payment.newBalance)]
   ];
-  const table = body.appendTable(rows);
-  table.setBorderColor('#f59e0b').setBorderWidth(1).setColumnWidth(0, 175).setColumnWidth(1, 327);
+  const details = body.appendTable(rows);
+  details.setBorderColor(DOCUMENT_THEME.line).setBorderWidth(0.7);
+  details.setColumnWidth(0, 170).setColumnWidth(1, 346);
   rows.forEach((row, index) => {
-    styleCell_(table.getCell(index, 0), '#fff7ed', '#111111', 10, true);
-    styleCell_(table.getCell(index, 1), '#ffffff', '#111111', 10, false);
+    setCellText_(details.getCell(index, 0), row[0], {
+      background: index % 2 === 0 ? DOCUMENT_THEME.goldSoft : DOCUMENT_THEME.paper,
+      color: DOCUMENT_THEME.red,
+      fontSize: 8,
+      bold: true,
+      paddingTop: 6,
+      paddingBottom: 6
+    });
+    setCellText_(details.getCell(index, 1), row[1], {
+      background: index % 2 === 0 ? DOCUMENT_THEME.white : DOCUMENT_THEME.paper,
+      color: DOCUMENT_THEME.ink,
+      fontSize: 9,
+      bold: index >= 5,
+      paddingTop: 6,
+      paddingBottom: 6
+    });
   });
-  styleText_(body.appendParagraph('Este recibo forma parte del historial del contrato y no sustituye el contrato original.'), {
-    fontFamily: 'Arial', fontSize: 8, bold: false, color: '#555555',
-    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 18, spacingAfter: 0
+  appendSpacer_(body, 6);
+
+  const statusText = Number(payment.newBalance) === 0 ? 'PAGO LIQUIDADO' : `SALDO PENDIENTE  ${money_(payment.newBalance)}`;
+  const status = body.appendTable([[statusText]]);
+  status.setBorderColor(Number(payment.newBalance) === 0 ? DOCUMENT_THEME.green : DOCUMENT_THEME.gold).setBorderWidth(1);
+  setCellText_(status.getCell(0, 0), statusText, {
+    background: Number(payment.newBalance) === 0 ? '#ECFDF3' : DOCUMENT_THEME.goldSoft,
+    color: Number(payment.newBalance) === 0 ? DOCUMENT_THEME.green : DOCUMENT_THEME.ink,
+    fontSize: 11,
+    bold: true,
+    paddingTop: 7,
+    paddingBottom: 7,
+    align: DocumentApp.HorizontalAlignment.CENTER
   });
+
+  styleText_(body.appendParagraph('Este recibo forma parte del historial de pagos y no sustituye el contrato original.'), {
+    fontFamily: 'Arial', fontSize: 8, bold: false, color: DOCUMENT_THEME.muted,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 12, spacingAfter: 2
+  });
+  styleText_(body.appendParagraph('PLAZA REPRESO  |  ' + APP_CONFIG.VENUE_ADDRESS), {
+    fontFamily: 'Arial', fontSize: 7, bold: true, color: DOCUMENT_THEME.ink,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 2, spacingAfter: 0
+  });
+
   doc.saveAndClose();
   return exportDocumentToPdf_(doc, folder, `Recibo ${contract.contractNumber} - ${payment.date} - ${payment.id}.pdf`);
 }
-
