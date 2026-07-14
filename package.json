@@ -4,7 +4,7 @@
   "private": true,
   "description": "Sistema unificado de contratos, pagos y agenda para Plaza Represo",
   "scripts": {
-    "test": "npm run test:domain && npm run test:services && npm run test:ui",
+    "test": "node tests/domain.test.js && node tests/security.test.js && node tests/repository.test.js && node tests/contract-service.test.js && node tests/automation.test.js && node tests/ui.test.js",
     "test:domain": "node tests/domain.test.js",
     "test:services": "node tests/security.test.js && node tests/repository.test.js && node tests/contract-service.test.js && node tests/automation.test.js",
     "test:ui": "node tests/ui.test.js",
