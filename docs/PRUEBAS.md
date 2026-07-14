@@ -2,6 +2,8 @@
 
 ## Reglas automáticas
 
+Ejecuta `pnpm test` antes de compartir cambios. La suite usa exclusivamente nombres, teléfonos, domicilios e identificadores ficticios.
+
 - Lunes a viernes calculan $3,500.
 - Sábado y domingo calculan $4,500.
 - El horario debe durar exactamente cinco horas, incluso si termina a medianoche.
@@ -10,6 +12,9 @@
 - Una fecha confirmada no puede reservarse nuevamente.
 - Un contrato cancelado libera la fecha.
 - La numeración comienza en C.2625 y se incrementa bajo bloqueo.
+- Fechas inexistentes, horas fuera de rango e importes no finitos son rechazados.
+- Los importes se normalizan a centavos para liquidar el saldo exactamente.
+- Un `requestId` repetido no registra dos veces el mismo pago.
 
 ## Seguridad
 
@@ -27,4 +32,13 @@
 4. Cambiar la fecha y confirmar que no se duplique el evento.
 5. Cancelar y comprobar que la fecha quede libre sin borrar el historial.
 6. Abrir desde la cuenta del empleado y comprobar el modo de consulta.
+7. Instalar dos veces la automatización y comprobar que quede un solo disparador diario.
+8. Ejecutar la conciliación manual y comprobar eventos activos, cancelados y saldos próximos.
 
+## Modo demostración y OCR
+
+1. Restablecer el demo desde el aviso naranja.
+2. Usar únicamente una tarjeta sintética marcada **FICTICIA / SIN VALIDEZ**.
+3. Confirmar que OCR propone nombre y domicilio, pero no genera nada hasta marcar la revisión manual.
+4. Crear, editar, pagar y cancelar contratos ficticios; recargar y revisar la persistencia local.
+5. Confirmar que ninguna fotografía o `data:` URL queda guardada en `localStorage`.

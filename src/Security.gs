@@ -4,10 +4,14 @@ function currentUser_() {
     throw new Error('Google no proporcionó tu identidad. Abre la aplicación con una sola cuenta Google y autoriza el acceso.');
   }
   const user = listObjects_('Usuarios').find(item =>
-    String(item.email).toLowerCase() === email && String(item.active).toLowerCase() !== 'false'
+    String(item.email).trim().toLowerCase() === email && isActiveUserValue_(item.active)
   );
   if (!user) throw new Error('Esta cuenta no está autorizada para Plaza Represo.');
   return { email, role: String(user.role || APP_CONFIG.ROLE_VIEWER) };
+}
+
+function isActiveUserValue_(value) {
+  return value === true || String(value).trim().toLowerCase() === 'true';
 }
 
 function requireOwner_() {
@@ -27,4 +31,3 @@ function stripPrivateClientFields_(client) {
     updatedAt: client.updatedAt
   };
 }
-

@@ -1,2 +1,1 @@
-**/**
-!src/**
+# `rootDir` ya apunta a `src`; todos sus archivos forman parte del proyecto Apps Script.

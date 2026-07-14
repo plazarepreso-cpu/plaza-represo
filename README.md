@@ -12,6 +12,7 @@ Aplicación web gratuita para administrar clientes, contratos, pagos y agenda de
 - Bloqueo de fechas ocupadas y validación de eventos de cinco horas.
 - Contrato PDF, recibos, historial de pagos y saldo calculado.
 - Agenda sincronizada con Google Calendar y recordatorios automáticos.
+- Conciliación diaria reparable de eventos y aviso de contratos con saldo a siete días o menos.
 - Identificaciones guardadas en una carpeta privada, separada de los contratos compartidos.
 - Modo demostración local con información completamente ficticia.
 
@@ -27,6 +28,8 @@ Aplicación web gratuita para administrar clientes, contratos, pagos y agenda de
 ## Vista local
 
 Abre `src/index.html` con un servidor local. Sin conexión a Apps Script, la aplicación usa datos ficticios guardados en el navegador. No cargues una INE real en el modo de demostración.
+
+El modo demostración permite recorrer clientes, contratos, pagos, agenda, OCR y automatizaciones sin crear recursos de Google. Restablece sus datos desde el aviso naranja cuando quieras volver al escenario inicial.
 
 ## Publicación
 

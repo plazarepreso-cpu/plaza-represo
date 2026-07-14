@@ -26,7 +26,8 @@ function listObjects_(sheetName) {
 function appendObject_(sheetName, object) {
   const sheet = getSheet_(sheetName);
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
-  sheet.appendRow(headers.map(header => object[header] === undefined ? '' : object[header]));
+  const row = headers.map(header => normalizeSheetWriteValue_(object[header] === undefined ? '' : object[header]));
+  sheet.getRange(sheet.getLastRow() + 1, 1, 1, headers.length).setValues([row]);
   return object;
 }
 
@@ -38,11 +39,37 @@ function updateObject_(sheetName, idColumn, id, updates) {
   if (idIndex < 0) throw new Error(`La hoja ${sheetName} no tiene la columna ${idColumn}.`);
   const rowIndex = values.findIndex((row, index) => index > 0 && String(row[idIndex]) === String(id));
   if (rowIndex < 1) throw new Error(`No se encontró ${id} en ${sheetName}.`);
+  const nextRow = values[rowIndex].slice();
   Object.keys(updates).forEach(key => {
     const column = headers.indexOf(key);
-    if (column >= 0) sheet.getRange(rowIndex + 1, column + 1).setValue(updates[key]);
+    if (column >= 0) nextRow[column] = normalizeSheetWriteValue_(updates[key]);
   });
+  const safeRow = nextRow.slice(0, headers.length).map(normalizeSheetWriteValue_);
+  sheet.getRange(rowIndex + 1, 1, 1, headers.length).setValues([safeRow]);
   return findObject_(sheetName, idColumn, id);
+}
+
+function ensureSheetHeaders_(sheetName, expectedHeaders) {
+  const sheet = getSheet_(sheetName);
+  const lastColumn = Math.max(sheet.getLastColumn(), 1);
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(String);
+  const missing = expectedHeaders.filter(header => !headers.includes(header));
+  if (missing.length) {
+    sheet.getRange(1, headers.length + 1, 1, missing.length).setValues([missing]);
+    sheet.getRange(1, headers.length + 1, 1, missing.length)
+      .setFontWeight('bold')
+      .setBackground('#171717')
+      .setFontColor('#ffffff');
+  }
+  return missing;
+}
+
+function ensureSchema_() {
+  return Object.keys(SHEET_HEADERS).reduce((changes, sheetName) => {
+    const missing = ensureSheetHeaders_(sheetName, SHEET_HEADERS[sheetName]);
+    if (missing.length) changes[sheetName] = missing;
+    return changes;
+  }, {});
 }
 
 function findObject_(sheetName, column, value) {
@@ -52,6 +79,12 @@ function findObject_(sheetName, column, value) {
 function normalizeCellValue_(value) {
   if (value instanceof Date) return Utilities.formatDate(value, APP_CONFIG.TIME_ZONE, "yyyy-MM-dd'T'HH:mm:ss");
   return value;
+}
+
+function normalizeSheetWriteValue_(value) {
+  if (typeof value !== 'string') return value;
+  // Evita que texto capturado por usuarios se interprete como fórmula al llegar a Sheets.
+  return /^[=+\-@]/.test(value) ? `'${value}` : value;
 }
 
 function getSetting_(key, fallback) {
@@ -77,4 +110,3 @@ function audit_(action, entityType, entityId, details) {
     detailsJson: JSON.stringify(details || {})
   });
 }
-
