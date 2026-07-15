@@ -51,6 +51,11 @@ assert.match(html, /callServer\('importHistoricalIne'/, 'cada INE aprobada se en
 assert.match(html, /id="syncHistoricalIneButton"/, 'las INE que ya existen en Drive pueden protegerse sin volver a subirlas');
 assert.match(html, /id="agendaUpcomingGrid"/, 'la agenda separa los próximos eventos');
 assert.match(html, /id="agendaHistoryGrid"/, 'la agenda conserva un histórico separado');
+assert.match(html, /id="viewerAgendaGrid"/, 'el empleado visualiza sus próximos eventos dentro del panel');
+assert.match(html, /function renderViewerAgendaCard/, 'la agenda de empleado usa tarjetas operativas propias');
+assert.match(html, /function openViewerEvent/, 'el empleado puede abrir detalles del evento sin abrir el contrato');
+assert.match(html, /id="viewerEventDialog"/, 'los detalles del empleado se muestran en un diálogo separado');
+assert.doesNotMatch(html, /id="agendaOnlyLink"/, 'el empleado ya no recibe un enlace externo a Google Calendar');
 assert.match(html, /return historical \? 'HISTORICO' : 'PROXIMO'/, 'la agenda etiqueta por fecha y no por la antigüedad del archivo');
 assert.match(html, /data-agenda-contract-id/, 'cada evento con contrato puede abrir sus detalles desde la agenda');
 assert.match(html, /function openExternal\(/, 'los archivos se abren desde un gesto de clic');

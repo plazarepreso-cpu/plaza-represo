@@ -1,12 +1,13 @@
 function getBootstrapData() {
   const user = currentUser_();
-  // CONSULTA no abre la hoja privada ni recibe listas que puedan revelar
-  // clientes, contratos, montos, enlaces o configuración interna.
+  // CONSULTA recibe sólo una agenda sanitizada del servidor. Nunca se
+  // entregan teléfonos, domicilios, pagos, archivos, INE ni IDs internos.
   if (user.role !== APP_CONFIG.ROLE_OWNER) {
     return {
       user,
       agendaOnly: true,
-      agendaUrl: typeof teamAgendaUrl_ === 'function' ? teamAgendaUrl_() : ''
+      viewerAgenda: getViewerAgenda_(),
+      branding: { logoDataUrl: getPlazaRepresoBrandDataUrl_() }
     };
   }
 
@@ -56,6 +57,35 @@ function getBootstrapData() {
   };
   if (accessMigrationWarning) data.accessMigrationWarning = accessMigrationWarning;
   return data;
+}
+
+function getViewerAgenda_() {
+  const combined = new Map();
+  const keyFor = item => {
+    const number = String(item.contractNumber || '').trim().toUpperCase();
+    const date = String(item.eventDate || '').trim();
+    return number && date ? `${number}|${date}` : `${item.id || item.title || ''}|${date}|${item.startTime || ''}`;
+  };
+  // La prioridad replica el panel propietario: así las notas operativas
+  // actualizadas se ven al equipo sin revelar el expediente completo.
+  listAgendaEvents_().forEach(item => combined.set(keyFor(item), item));
+  listHistoricalContracts_().forEach(item => combined.set(keyFor(item), Object.assign({}, combined.get(keyFor(item)) || {}, item)));
+  listObjects_('Contratos').filter(item => item.status !== 'GENERANDO').forEach(item => combined.set(keyFor(item), Object.assign({}, combined.get(keyFor(item)) || {}, item)));
+
+  return Array.from(combined.values())
+    .filter(item => String(item.status || '').toUpperCase() !== 'CANCELADO')
+    .filter(item => String(item.eventDate || '') >= todayIso_())
+    .sort((a, b) => `${a.eventDate || ''} ${a.startTime || ''}`.localeCompare(`${b.eventDate || ''} ${b.startTime || ''}`))
+    .map(item => ({
+      contractNumber: String(item.contractNumber || '').trim(),
+      clientName: String(item.clientName || item.title || 'Evento reservado').trim(),
+      eventDate: String(item.eventDate || '').trim(),
+      eventDay: String(item.eventDay || '').trim(),
+      startTime: String(item.startTime || '').trim(),
+      endTime: String(item.endTime || '').trim(),
+      eventType: String(item.eventType || 'Evento').trim(),
+      notes: String(item.notes || '').trim()
+    }));
 }
 
 function getDuplicatePaymentGroups(contractNumber) {
