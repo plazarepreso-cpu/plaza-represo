@@ -616,6 +616,47 @@ test('updateContract rechaza expectedVersion obsoleta y siempre libera el bloque
   assert.strictEqual(state.clientUpserts, 0);
 });
 
+test('regenerateContractPdf crea una versión visual sin mover saldos ni pagos', () => {
+  seedContract({
+    version: 4,
+    currentPdfFileId: 'pdf-viejo-ficticio',
+    paid: 1750,
+    balance: 1750,
+    total: 3500
+  });
+
+  const saved = clone(context.regenerateContractPdf({
+    id: 'contrato-ficticio-001',
+    expectedVersion: 4
+  }));
+
+  assert.strictEqual(saved.version, 5);
+  assert.strictEqual(saved.total, 3500);
+  assert.strictEqual(saved.paid, 1750);
+  assert.strictEqual(saved.balance, 1750);
+  assert.strictEqual(saved.currentPdfFileId, 'contrato-pdf-contrato-ficticio-001');
+  assert.strictEqual(state.sheets.Pagos.length, 0);
+  assert.strictEqual(state.contractPdfCalls.length, 1);
+  assert.strictEqual(state.contractPdfCalls[0].contract.version, 5);
+  assert.strictEqual(state.receiptCalls.length, 0);
+  assert.strictEqual(state.calendarUpdates.length, 0);
+  assert.strictEqual(state.lockReleases, 1);
+  assert.strictEqual(state.audits[0].action, 'REGENERAR_PDF_CONTRATO');
+});
+
+test('regenerateContractPdf rechaza expectedVersion obsoleta sin crear PDF', () => {
+  seedContract({ version: 8 });
+
+  assert.throws(() => context.regenerateContractPdf({
+    id: 'contrato-ficticio-001',
+    expectedVersion: 7
+  }), /cambió en otra sesión/);
+
+  assert.strictEqual(state.contractPdfCalls.length, 0);
+  assert.strictEqual(state.updates.length, 0);
+  assert.strictEqual(state.lockReleases, 1);
+});
+
 test('cancelContract es idempotente y libera el bloqueo sin repetir efectos', () => {
   seedContract({
     version: 4,

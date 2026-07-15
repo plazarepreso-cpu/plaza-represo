@@ -83,7 +83,11 @@ def main() -> None:
         assert_words_present(contract["eventType"], text)
         assert money(contract["total"]) in text
         assert money(contract["initialDeposit"]) in text
-        assert all(normalized(clause) in text for clause in clauses)
+        # En una tabla de dos columnas el extractor puede intercalar el número
+        # de la cláusula entre líneas visualmente continuas. Verificamos todas
+        # las palabras de cada cláusula sin depender de ese orden técnico.
+        for clause in clauses:
+            assert_words_present(clause, text)
 
     pending_contract = contracts[-1]
     pending_payment = {

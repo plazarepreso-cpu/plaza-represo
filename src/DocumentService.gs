@@ -65,6 +65,20 @@ function styleFragments_(paragraph, fragments) {
   });
 }
 
+function styleValueAfterLabel_(paragraph, label, options) {
+  const fullText = paragraph.getText();
+  const start = fullText.indexOf(label);
+  if (start < 0) return;
+  const valueStart = start + label.length;
+  const lineEnd = fullText.indexOf('\n', valueStart);
+  const valueEnd = (lineEnd < 0 ? fullText.length : lineEnd) - 1;
+  if (valueEnd < valueStart) return;
+  const text = paragraph.editAsText();
+  if (options.bold !== undefined) text.setBold(valueStart, valueEnd, options.bold);
+  if (options.fontSize) text.setFontSize(valueStart, valueEnd, options.fontSize);
+  if (options.color) text.setForegroundColor(valueStart, valueEnd, options.color);
+}
+
 function printableDate_(value) {
   const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return String(value || '');
@@ -189,25 +203,25 @@ function appendContractSummary_(body, contract) {
     ]
   ]);
   table.setBorderColor(DOCUMENT_THEME.line).setBorderWidth(0.8);
-  table.setColumnWidth(0, 185).setColumnWidth(1, 211).setColumnWidth(2, 160);
+  table.setColumnWidth(0, 176).setColumnWidth(1, 230).setColumnWidth(2, 150);
 
   for (let column = 0; column < 3; column += 1) {
     setCellText_(table.getCell(0, column), table.getCell(0, column).getText(), {
       background: DOCUMENT_THEME.ink,
       color: DOCUMENT_THEME.white,
-      fontSize: 8,
+      fontSize: 9,
       bold: true,
-      paddingTop: 4,
-      paddingBottom: 4,
+      paddingTop: 5,
+      paddingBottom: 5,
       align: DocumentApp.HorizontalAlignment.CENTER
     });
     const detail = setCellText_(table.getCell(1, column), table.getCell(1, column).getText(), {
       background: DOCUMENT_THEME.paper,
       color: DOCUMENT_THEME.ink,
-      fontSize: column === 2 ? 8 : 7,
-      paddingTop: 6,
-      paddingBottom: 6,
-      lineSpacing: 1.12
+      fontSize: column === 1 ? 8 : 8,
+      paddingTop: 8,
+      paddingBottom: 8,
+      lineSpacing: 1.18
     });
     styleFragments_(detail, [
       { text: 'DÍA', bold: true, color: DOCUMENT_THEME.red },
@@ -222,6 +236,9 @@ function appendContractSummary_(body, contract) {
       { text: 'SALDO', bold: true, color: DOCUMENT_THEME.red },
       { text: Number(contract.balance) === 0 ? 'PAGADO' : 'SALDO PENDIENTE', bold: true, color: DOCUMENT_THEME.green }
     ]);
+    if (column === 1) {
+      styleValueAfterLabel_(detail, 'NOMBRE  ', { bold:true, fontSize:9 });
+    }
   }
   return table;
 }
@@ -236,10 +253,10 @@ function appendClauses_(body) {
     setCellText_(table.getCell(index, 0), String(index + 1), {
       background: DOCUMENT_THEME.ink,
       color: DOCUMENT_THEME.gold,
-      fontSize: 9,
+      fontSize: 10,
       bold: true,
-      paddingTop: 2,
-      paddingBottom: 2,
+      paddingTop: 4,
+      paddingBottom: 4,
       paddingLeft: 2,
       paddingRight: 2,
       align: DocumentApp.HorizontalAlignment.CENTER
@@ -247,12 +264,12 @@ function appendClauses_(body) {
     setCellText_(table.getCell(index, 1), row[1], {
       background: index % 2 === 0 ? DOCUMENT_THEME.white : DOCUMENT_THEME.paper,
       color: DOCUMENT_THEME.ink,
-      fontSize: 7,
-      paddingTop: 2,
-      paddingBottom: 2,
+      fontSize: 8,
+      paddingTop: 4,
+      paddingBottom: 4,
       paddingLeft: 6,
       paddingRight: 5,
-      lineSpacing: 1.02
+      lineSpacing: 1.1
     });
   });
   return table;
@@ -265,25 +282,25 @@ function appendContractFooter_(body, contract) {
   setCellText_(deposit.getCell(0, 0), 'SE APARTÓ CON LA CANTIDAD DE', {
     background: DOCUMENT_THEME.ink,
     color: DOCUMENT_THEME.white,
-    fontSize: 9,
+    fontSize: 10,
     bold: true,
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 6,
+    paddingBottom: 6,
     align: DocumentApp.HorizontalAlignment.CENTER
   });
   setCellText_(deposit.getCell(0, 1), `${money_(contract.initialDeposit)} M.N.`, {
     background: DOCUMENT_THEME.gold,
     color: DOCUMENT_THEME.ink,
-    fontSize: 11,
+    fontSize: 12,
     bold: true,
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 6,
+    paddingBottom: 6,
     align: DocumentApp.HorizontalAlignment.CENTER
   });
 
   styleText_(body.appendParagraph('PLAZA REPRESO AGRADECE SU PREFERENCIA'), {
-    fontFamily: 'Arial', fontSize: 8, bold: true, color: DOCUMENT_THEME.ink,
-    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 2, spacingAfter: 2
+    fontFamily: 'Arial', fontSize: 9, bold: true, color: DOCUMENT_THEME.ink,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 4, spacingAfter: 3
   });
 }
 
@@ -293,32 +310,32 @@ function buildContractDocument_(contract) {
   body
     .setPageWidth(612)
     .setPageHeight(792)
-    .setMarginTop(22)
-    .setMarginBottom(20)
+    .setMarginTop(16)
+    .setMarginBottom(14)
     .setMarginLeft(28)
     .setMarginRight(28);
 
   appendBrandHeader_(body, 'CONTRATO No.', contract.contractNumber);
   styleText_(body.appendParagraph('CONTRATO DE ARRENDAMIENTO PARA SALÓN DE EVENTOS SOCIALES'), {
-    fontFamily: 'Arial', fontSize: 11, bold: true, color: DOCUMENT_THEME.ink,
-    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 5, spacingAfter: 1
+    fontFamily: 'Arial', fontSize: 12, bold: true, color: DOCUMENT_THEME.ink,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 6, spacingAfter: 2
   });
   styleText_(body.appendParagraph('PLAZA REPRESO'), {
-    fontFamily: 'Arial', fontSize: 13, bold: true, color: DOCUMENT_THEME.red,
-    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 0, spacingAfter: 1
+    fontFamily: 'Arial', fontSize: 15, bold: true, color: DOCUMENT_THEME.red,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 0, spacingAfter: 2
   });
   const dateLine = body.appendParagraph(`NOGALES, SONORA  |  ${printableDate_(contract.elaborationDate).toUpperCase()}`);
   styleText_(dateLine, {
-    fontFamily: 'Arial', fontSize: 8, bold: true, color: DOCUMENT_THEME.muted,
-    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 0, spacingAfter: 4
+    fontFamily: 'Arial', fontSize: 9, bold: true, color: DOCUMENT_THEME.muted,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 0, spacingAfter: 6
   });
   styleFragments_(dateLine, [{ text: printableDate_(contract.elaborationDate).toUpperCase(), color: DOCUMENT_THEME.red }]);
 
   appendContractSummary_(body, contract);
   styleText_(body.appendParagraph('Se celebra este contrato entre el ARRENDADOR, Salón de Eventos Plaza Represo, y el ARRENDATARIO(A) antes mencionado, quienes aceptan las siguientes cláusulas:'), {
-    fontFamily: 'Arial', fontSize: 7, bold: false, color: DOCUMENT_THEME.ink,
-    align: DocumentApp.HorizontalAlignment.CENTER, lineSpacing: 1.05,
-    spacingBefore: 4, spacingAfter: 3
+    fontFamily: 'Arial', fontSize: 8, bold: false, color: DOCUMENT_THEME.ink,
+    align: DocumentApp.HorizontalAlignment.CENTER, lineSpacing: 1.12,
+    spacingBefore: 6, spacingAfter: 5
   });
   appendClauses_(body);
   appendContractFooter_(body, contract);

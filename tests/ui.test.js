@@ -35,7 +35,7 @@ assert.match(html, /callServer\('importHistoricalContracts'/, 'el panel envía �
 assert.match(html, /id="indexHistoricalButton"/, 'el propietario puede indexar contratos existentes sin duplicarlos');
 assert.match(html, /callServer\('indexHistoricalContracts'/, 'el índice histórico usa la operación segura sin crear archivos ni eventos');
 assert.match(html, /solo guarda el índice y no crea copias/, 'el panel explica cómo evitar duplicar el historial existente');
-assert.match(html, /const detailLabel = managed \? 'Editar' : 'Ver datos'/, 'los contratos administrados muestran una acción clara para editar');
+assert.match(html, /const detailLabel = managed \? 'Editar contrato' : 'Ver datos'/, 'los contratos administrados muestran una acción clara para editar');
 assert.match(html, /client\.hasIne && state\.data\.user\.role === 'PROPIETARIO'/, 'el propietario puede abrir la INE desde clientes');
 assert.match(html, /Abrir INE privada/, 'el propietario puede abrir la INE desde el detalle del contrato');
 assert.match(html, /callServer\('getPrivateIneUrl', payload\)/, 'la INE se solicita al endpoint privado al abrirla');
@@ -47,6 +47,8 @@ assert.match(html, /callServer\('importHistoricalIne'/, 'cada INE aprobada se en
 assert.match(html, /id="syncHistoricalIneButton"/, 'las INE que ya existen en Drive pueden protegerse sin volver a subirlas');
 assert.match(html, /id="agendaUpcomingGrid"/, 'la agenda separa los próximos eventos');
 assert.match(html, /id="agendaHistoryGrid"/, 'la agenda conserva un histórico separado');
+assert.match(html, /return historical \? 'HISTORICO' : 'PROXIMO'/, 'la agenda etiqueta por fecha y no por la antigüedad del archivo');
+assert.match(html, /data-agenda-contract-id/, 'cada evento con contrato puede abrir sus detalles desde la agenda');
 assert.match(html, /function openExternal\(/, 'los archivos se abren desde un gesto de clic');
 assert.match(html, /window\.open\(safeUrl, '_blank'/, 'los archivos de Drive se abren en otra pestaña');
 assert.match(html, /fallback\.target = '_blank'/, 'el respaldo también conserva el panel abierto');
@@ -54,10 +56,15 @@ assert.doesNotMatch(html, /fallback\.target = '_top'/, 'ningún respaldo reempla
 assert.match(html, /callServer\(payload\.paymentSource === 'ARCHIVO_ANTERIOR' \? 'addHistoricalPayment' : 'addPayment', payload\)/, 'los contratos históricos aceptan pagos desde el panel');
 assert.match(html, /data-register-payment-id/, 'cada contrato con saldo puede iniciar el registro de pago desde su propia fila');
 assert.match(html, /data-partial-payment-id/, 'cada contrato con saldo permite preparar un abono parcial');
+assert.match(html, /data-regenerate-contract-id/, 'cada contrato administrado permite regenerar su PDF vigente');
+assert.match(html, /callServer\('regenerateContractPdf'/, 'el panel regenera el PDF sin crear otro contrato');
+assert.match(html, /Guarda primero los cambios del contrato antes de regenerar el PDF/, 'el panel evita regenerar con datos sin guardar');
 assert.match(html, /function preparePartialPayment\(/, 'el panel prepara abonos sin precargar la liquidación');
 assert.match(html, /Registrar abono \/ mover saldo/, 'la sección de pagos explica el movimiento parcial del saldo');
 assert.match(html, /id="fillPaymentBalance"/, 'el formulario permite llenar el saldo completo solo cuando se elige esa opción');
 assert.match(html, /Saldo tras este pago:/, 'cada movimiento muestra el saldo que dejó en el contrato');
+assert.match(html, /function paymentItems\(/, 'los movimientos recientes se normalizan antes de mostrarse');
+assert.match(html, /const completed = new Map\(\)/, 'los duplicados técnicos de un mismo pago se muestran una sola vez');
 assert.match(html, /function prepareLiquidationPayment\(/, 'el panel prepara la liquidación desde un contrato existente');
 assert.match(html, /Liquidación del contrato/, 'la liquidación se identifica correctamente en el recibo y el historial');
 assert.match(html, /data-payment-balance/, 'el pago no puede rebasar el saldo pendiente del contrato seleccionado');

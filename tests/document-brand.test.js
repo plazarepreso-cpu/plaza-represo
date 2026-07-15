@@ -183,4 +183,14 @@ test('el pie conserva el apartado y agradecimiento sin duplicar dirección ni ca
   assert.doesNotMatch(footerSource, /DIRECCIÓN DEL SALÓN|CAPACIDAD MÁXIMA|VENUE_ADDRESS|MAX_CAPACITY/);
 });
 
+test('el resumen contractual solo contiene un bloque por datos del evento, cliente y pagos', () => {
+  const summaryMatch = source.match(/function appendContractSummary_\([\s\S]*?\n}\n\nfunction appendClauses_/);
+  assert.ok(summaryMatch, 'el generador del resumen debe existir');
+  const summarySource = summaryMatch[0];
+  ['DATOS DEL EVENTO', 'DATOS DEL CLIENTE', 'PAGOS'].forEach(label => {
+    assert.strictEqual((summarySource.match(new RegExp(label, 'g')) || []).length, 1, `${label} aparece una sola vez`);
+  });
+  assert.match(summarySource, /styleValueAfterLabel_\(detail, 'NOMBRE  '/, 'el nombre del cliente se destaca dentro del resumen');
+});
+
 console.log(`${passed} casos de marca en contratos y recibos verificados correctamente.`);

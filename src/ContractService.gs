@@ -268,6 +268,38 @@ function updateContract(payload) {
   }
 }
 
+function regenerateContractPdf(payload) {
+  const user = requireOwner_();
+  const data = payload || {};
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    ensureSchema_();
+    const existing = findObject_('Contratos', 'id', data.id);
+    if (!existing) throw new Error('No se encontró el contrato.');
+    if (existing.status === 'CANCELADO') throw new Error('Un contrato cancelado no puede regenerarse.');
+    if (existing.status === 'GENERANDO') throw new Error('Espera a que termine la creación antes de regenerarlo.');
+    if (data.expectedVersion !== undefined && Number(data.expectedVersion) !== Number(existing.version)) {
+      throw new Error('El contrato cambió en otra sesión. Actualiza el panel antes de regenerar.');
+    }
+
+    const folder = DriveApp.getFolderById(existing.folderId);
+    const updated = Object.assign({}, existing, {
+      version: Number(existing.version || 1) + 1,
+      updatedAt: nowIso_(),
+      updatedBy: user.email
+    });
+    const generated = generateContractPdf_(updated, folder);
+    updated.currentPdfFileId = generated.pdfFileId;
+    const saved = updateObject_('Contratos', 'id', existing.id, updated);
+    try { audit_('REGENERAR_PDF_CONTRATO', 'Contrato', existing.id, { version: updated.version }); }
+    catch (ignored) {}
+    return saved;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function addPayment(payload) {
   const user = requireOwner_();
   const data = payload || {};

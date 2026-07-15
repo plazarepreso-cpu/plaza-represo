@@ -89,15 +89,16 @@
     .money-row span { color: var(--muted); }
     .money-row strong { white-space: nowrap; }
     .status { display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 9px; font-size: 10px; font-weight: 850; letter-spacing: .04em; }
-    .status.CONFIRMADO { color: #9a3412; background: #ffedd5; }
-    .status.PAGADO, .status.LIQUIDADO, .status.COMPLETADO { color: #166534; background: #dcfce7; }
+    .status.CONFIRMADO, .status.PENDIENTE { color: #9a3412; background: #ffedd5; }
+    .status.PAGADO, .status.LIQUIDADO, .status.COMPLETADO, .status.REGISTRADO { color: #166534; background: #dcfce7; }
     .status.CALENDARIO { color: #075985; background: #e0f2fe; }
-    .status.ANTERIOR { color: #7c2d12; background: #ffedd5; }
+    .status.ANTERIOR, .status.HISTORICO { color: #7c2d12; background: #ffedd5; }
+    .status.PROXIMO { color: #075985; background: #e0f2fe; }
     .status.CANCELADO { color: #991b1b; background: #fee2e2; }
     .status.ERROR { color: #7f1d1d; background: #fecaca; }
     .status.GENERANDO { color: #854d0e; background: #fef9c3; }
     .status.ACTIVA, .status.INSTALADA { color: #166534; background: #dcfce7; }
-    .status.INACTIVA, .status.PENDIENTE { color: #854d0e; background: #fef3c7; }
+    .status.INACTIVA { color: #854d0e; background: #fef3c7; }
     .form-card { padding: 0; overflow: hidden; }
     .form-section { padding: 23px; border-bottom: 1px solid var(--line); }
     .form-section:last-child { border: 0; }
@@ -139,6 +140,9 @@
     .agenda-section-head h4 { margin: 0; font-size: 17px; }
     .agenda-section-head p { color: var(--muted); font-size: 12px; margin: 3px 0 0; }
     .agenda-card { padding: 18px; border-top: 4px solid var(--orange); }
+    .agenda-card.has-details { cursor: pointer; }
+    .agenda-card.has-details:hover, .agenda-card.has-details:focus { outline: 3px solid rgba(245,158,11,.24); outline-offset: 2px; transform: translateY(-1px); }
+    .agenda-card .agenda-open-hint { margin-top: 12px; color: var(--orange-dark); font-weight: 750; }
     .agenda-card.cancelled { opacity: .65; border-color: var(--red); }
     .agenda-card.next-event { border-color: var(--green); box-shadow: 0 18px 45px rgba(21, 128, 61, .16); }
     .next-event-label { display: inline-flex; margin: 0 0 7px; border-radius: 999px; padding: 4px 8px; color: #166534; background: #dcfce7; font-size: 10px; font-weight: 850; letter-spacing: .06em; }
@@ -325,7 +329,7 @@
         </section>
 
         <section class="view owner-only" id="view-contracts">
-          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios. Registra un abono parcial o liquida el saldo sin crear otro contrato.</p></div><div class="filters"><button class="btn btn-ghost owner-only" type="button" id="syncFilesButton">Vincular archivos de Drive</button><div><label class="sr-only" for="contractSearch">Buscar contrato</label><input id="contractSearch" placeholder="Buscar número o cliente"></div><div><label class="sr-only" for="contractStatus">Filtrar por estado</label><select id="contractStatus"><option value="">Todos</option><option>CONFIRMADO</option><option value="PAGADO">LIQUIDADO</option><option>CANCELADO</option><option>CALENDARIO</option><option>ERROR</option></select></div></div></div>
+          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios. Registra un abono parcial o liquida el saldo sin crear otro contrato.</p></div><div class="filters"><button class="btn btn-ghost owner-only" type="button" id="syncFilesButton">Vincular archivos de Drive</button><div><label class="sr-only" for="contractSearch">Buscar contrato</label><input id="contractSearch" placeholder="Buscar número o cliente"></div><div><label class="sr-only" for="contractStatus">Filtrar por estado</label><select id="contractStatus"><option value="">Todos</option><option>PENDIENTE</option><option>LIQUIDADO</option><option>CANCELADO</option><option>CALENDARIO</option><option>ERROR</option></select></div></div></div>
           <div class="card table-wrap"><table class="data"><thead><tr><th>Contrato</th><th>Evento</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th></th></tr></thead><tbody id="contractsBody"></tbody></table></div>
         </section>
 
@@ -876,7 +880,10 @@
     function statusClass(status) { return String(status || '').toUpperCase().replace(/[^A-Z0-9_-]/g, ''); }
     function contractStatusLabel(contract) {
       const status = String(contract?.status || contract || '').toUpperCase();
-      return status === 'PAGADO' && Number(contract?.balance || 0) <= 0 ? 'LIQUIDADO' : status;
+      if (status === 'CANCELADO' || status === 'ERROR' || status === 'GENERANDO' || status === 'CALENDARIO') return status;
+      const balance = Number(contract?.balance);
+      if (Number.isFinite(balance)) return balance <= 0 ? 'LIQUIDADO' : 'PENDIENTE';
+      return status === 'PAGADO' ? 'LIQUIDADO' : status;
     }
     function canRegisterPayment(contract) {
       return state.data?.user?.role === 'PROPIETARIO'
@@ -951,10 +958,10 @@
     }
     function operationalAgenda() { return agendaItems().filter(item => !NON_OPERATIONAL_STATUSES.has(String(item.status).toUpperCase())); }
     function agendaName(item) { return item.clientName || item.title || item.contractNumber || 'Evento'; }
-    function agendaBadge(item) {
+    function agendaBadge(item, historical = false) {
       const status = String(item.status || 'CONFIRMADO').toUpperCase();
-      if (status === 'CANCELADO' || item.source === 'CONTRATO') return contractStatusLabel(item);
-      return item.source === 'ARCHIVO_ANTERIOR' ? 'ANTERIOR' : 'CALENDARIO';
+      if (status === 'CANCELADO') return 'CANCELADO';
+      return historical ? 'HISTORICO' : 'PROXIMO';
     }
     function compareEventsAscending(a, b) { return `${a.eventDate || ''} ${a.startTime || ''}`.localeCompare(`${b.eventDate || ''} ${b.startTime || ''}`); }
     function compareEventsDescending(a, b) { return compareEventsAscending(b, a) || String(b.contractNumber || '').localeCompare(String(a.contractNumber || '')); }
@@ -1093,14 +1100,27 @@
       document.getElementById('paymentSummary').innerHTML = `<div class="money-row"><span>Contratado</span><strong>${money(totals)}</strong></div><div class="money-row"><span>Pagado</span><strong style="color:var(--green)">${money(paid)}</strong></div><div class="money-row"><span>Pendiente</span><strong style="color:var(--red)">${money(balance)}</strong></div><div style="height:9px;background:#f1f1ef;border-radius:99px;overflow:hidden;margin-top:18px" role="progressbar" aria-label="Porcentaje cobrado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percentage}"><div style="height:100%;width:${percentage}%;background:linear-gradient(90deg,var(--orange),var(--green))"></div></div>`;
     }
 
-    function renderAgendaCard(event, isNext = false) {
+    function relatedAgendaContract(event) {
+      const eventId = String(event.id || '');
+      return contractItems().find(contract =>
+        (eventId && String(contract.id) === eventId) ||
+        (String(contract.contractNumber || '').toUpperCase() === String(event.contractNumber || '').toUpperCase() &&
+          String(contract.eventDate || '') === String(event.eventDate || ''))
+      ) || null;
+    }
+
+    function renderAgendaCard(event, isNext = false, historical = false) {
         const status = String(event.status || 'CONFIRMADO').toUpperCase();
-        const badge = agendaBadge(event);
+        const badge = agendaBadge(event, historical);
         const heading = event.contractNumber ? `${event.contractNumber} — ${agendaName(event)}` : agendaName(event);
-        const detail = event.source === 'CONTRATO'
-          ? `Pagado ${money(event.paid)} · Saldo ${money(event.balance)}`
+        const contract = relatedAgendaContract(event);
+        const canOpen = Boolean(contract);
+        const detail = canOpen
+          ? 'Haz clic para ver el contrato, corregir datos o registrar un abono.'
           : `Google Calendar${event.calendarName ? ` · ${event.calendarName}` : ''}${event.location ? ` · ${event.location}` : ''}`;
-        return `<article class="card agenda-card ${status === 'CANCELADO' ? 'cancelled' : ''} ${isNext ? 'next-event' : ''}">${isNext ? '<span class="next-event-label">SIGUIENTE EVENTO</span>' : ''}<div class="agenda-date">${escapeHtml(event.eventDay || dayName(event.eventDate))} · ${escapeHtml(event.eventDate)}</div><h4>${escapeHtml(heading)}</h4><p><strong>${escapeHtml(event.startTime)} a ${escapeHtml(event.endTime)}</strong> · ${escapeHtml(event.eventType || 'Evento')}</p><p>${escapeHtml(detail)}</p><span class="status ${statusClass(badge)}">${escapeHtml(badge)}</span></article>`;
+        const openAttributes = canOpen ? ` data-agenda-contract-id="${escapeHtml(contract.id)}" tabindex="0" role="button" aria-label="Abrir detalles de ${escapeHtml(heading)}"` : '';
+        const openHint = canOpen ? '<p class="agenda-open-hint">Ver detalles del contrato</p>' : '';
+        return `<article class="card agenda-card ${canOpen ? 'has-details' : ''} ${status === 'CANCELADO' ? 'cancelled' : ''} ${isNext ? 'next-event' : ''}"${openAttributes}>${isNext ? '<span class="next-event-label">SIGUIENTE EVENTO</span>' : ''}<div class="agenda-date">${escapeHtml(event.eventDay || dayName(event.eventDate))} · ${escapeHtml(event.eventDate)}</div><h4>${escapeHtml(heading)}</h4><p><strong>${escapeHtml(event.startTime)} a ${escapeHtml(event.endTime)}</strong> · ${escapeHtml(event.eventType || 'Evento')}</p><p>${escapeHtml(detail)}</p><span class="status ${statusClass(badge)}">${escapeHtml(badge)}</span>${openHint}</article>`;
     }
 
     function renderAgenda() {
@@ -1134,8 +1154,8 @@
         .sort(compareEventsDescending);
       document.getElementById('agendaUpcomingCount').textContent = `${upcoming.length} próximo${upcoming.length === 1 ? '' : 's'}`;
       document.getElementById('agendaHistoryCount').textContent = `${historical.length} en histórico`;
-      document.getElementById('agendaUpcomingGrid').innerHTML = upcoming.map((event, index) => renderAgendaCard(event, index === 0)).join('') || '<div class="empty">No hay eventos próximos.</div>';
-      document.getElementById('agendaHistoryGrid').innerHTML = historical.map(event => renderAgendaCard(event)).join('') || '<div class="empty">Aún no hay eventos en el histórico.</div>';
+      document.getElementById('agendaUpcomingGrid').innerHTML = upcoming.map((event, index) => renderAgendaCard(event, index === 0, false)).join('') || '<div class="empty">No hay eventos próximos.</div>';
+      document.getElementById('agendaHistoryGrid').innerHTML = historical.map(event => renderAgendaCard(event, false, true)).join('') || '<div class="empty">Aún no hay eventos en el histórico.</div>';
     }
 
     function teamAgendaUrl(value) {
@@ -1151,7 +1171,7 @@
       const query = document.getElementById('contractSearch').value.trim().toLowerCase();
       const statusFilter = document.getElementById('contractStatus').value;
       const rows = contractItems()
-        .filter(contract => (!query || `${contract.contractNumber} ${contract.clientName}`.toLowerCase().includes(query)) && (!statusFilter || contract.status === statusFilter))
+        .filter(contract => (!query || `${contract.contractNumber} ${contract.clientName}`.toLowerCase().includes(query)) && (!statusFilter || contractStatusLabel(contract) === statusFilter))
         .sort(compareEventsDescending);
       document.getElementById('contractsBody').innerHTML = rows.map(contract => {
         const status = contractStatusLabel(contract);
@@ -1165,8 +1185,11 @@
         const paymentAction = canRegisterPayment(contract)
           ? `<button class="btn btn-primary btn-small" type="button" data-register-payment-id="${escapeHtml(contract.id)}">Liquidar saldo</button>`
           : '';
-        const detailLabel = managed ? 'Editar' : 'Ver datos';
-        const action = `<button class="btn btn-ghost btn-small" type="button" data-contract-id="${escapeHtml(contract.id)}">${detailLabel}</button>${partialPaymentAction}${paymentAction}${pdfLink}${missingFile}`;
+        const regenerateAction = managed && state.data.user.role === 'PROPIETARIO' && contract.status !== 'CANCELADO'
+          ? `<button class="btn btn-ghost btn-small" type="button" data-regenerate-contract-id="${escapeHtml(contract.id)}">Regenerar PDF</button>`
+          : '';
+        const detailLabel = managed ? 'Editar contrato' : 'Ver datos';
+        const action = `<button class="btn btn-ghost btn-small" type="button" data-contract-id="${escapeHtml(contract.id)}">${detailLabel}</button>${regenerateAction}${partialPaymentAction}${paymentAction}${pdfLink}${missingFile}`;
         const amount = value => value === '' || value === null || value === undefined ? '—' : money(value);
         return `<tr><td><strong>${escapeHtml(contract.contractNumber)}</strong><br><small>${escapeHtml(sourceLabel)}</small></td><td>${escapeHtml(contract.eventDate || '—')}<br><small>${escapeHtml(contract.startTime || '—')}–${escapeHtml(contract.endTime || '—')}</small></td><td>${escapeHtml(contract.clientName || 'Sin nombre registrado')}</td><td>${amount(contract.total)}</td><td>${amount(contract.paid)}</td><td><strong>${amount(contract.balance)}</strong></td><td><span class="status ${statusClass(status)}">${escapeHtml(status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap">${action}</div></td></tr>`;
       }).join('') || '<tr><td colspan="8" class="empty">No se encontraron contratos.</td></tr>';
@@ -1187,17 +1210,17 @@
       }).join('') || '<option value="">No hay saldos pendientes</option>';
       if (available.some(contract => String(contract.id) === previousSelection)) select.value = previousSelection;
       updatePaymentSelection();
-      const payments = [...state.data.payments].sort(comparePaymentsDescending).slice(0, 12);
+      const payments = paymentItems().slice(0, 12);
       document.getElementById('paymentsList').innerHTML = payments.map(payment => {
         const paymentStatus = String(payment.status || 'COMPLETADO').toUpperCase();
         const completed = paymentStatus === 'COMPLETADO';
         const receiptLink = completed ? driveFileLink(payment.receiptFileId, 'Recibo') : '';
-        const statusBadge = `<span class="status ${statusClass(paymentStatus)}">${escapeHtml(paymentStatus)}</span>`;
+        const statusBadge = `<span class="status ${statusClass(paymentStatus)}">${escapeHtml(completed ? 'REGISTRADO' : paymentStatus)}</span>`;
         const balanceAfter = Number.isFinite(Number(payment.newBalance))
           ? `<br><small>Saldo tras este pago: ${money(payment.newBalance)}</small>` : '';
         const contract = contractItems().find(item => String(item.id) === String(payment.contractId));
         const editButton = contract?.source === 'CONTRATO'
-          ? `<button class="btn btn-ghost btn-small" type="button" data-payment-edit-contract-id="${escapeHtml(contract.id)}">Editar contrato</button>` : '';
+          ? `<button class="btn btn-ghost btn-small" type="button" data-payment-edit-contract-id="${escapeHtml(contract.id)}">Editar contrato / saldo</button>` : '';
         return `<div class="money-row"><div><strong>${escapeHtml(payment.contractNumber)}</strong> ${statusBadge}<br><small>${escapeHtml(payment.date)} · ${escapeHtml(payment.method || '')}</small>${balanceAfter}${receiptLink || editButton ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${receiptLink}${editButton}</div>` : ''}</div><strong style="color:${completed ? 'var(--green)' : 'var(--red)'}">${money(payment.amount)}</strong></div>`;
       }).join('') || '<div class="empty">No hay pagos registrados.</div>';
     }
@@ -1222,6 +1245,22 @@
         noteInput.value = 'Liquidación del contrato';
         state.formDirty.payment = true;
       }
+    }
+
+    function paymentItems() {
+      const completed = new Map();
+      const other = [];
+      [...(state.data.payments || [])].sort(comparePaymentsDescending).forEach(payment => {
+        const status = String(payment.status || '').toUpperCase();
+        if (status !== 'COMPLETADO') {
+          other.push(payment);
+          return;
+        }
+        const key = String(payment.requestId || '').trim()
+          || [payment.contractId, payment.date, roundMoney(payment.amount), roundMoney(payment.newBalance), String(payment.note || '').trim().toLowerCase()].join('|');
+        if (!completed.has(key)) completed.set(key, payment);
+      });
+      return [...completed.values(), ...other].sort(comparePaymentsDescending);
     }
 
     function preparePaymentMovement(id, { fillLiquidation = false } = {}) {
@@ -1269,7 +1308,7 @@
         else if (client.hasIne && state.data.user.role === 'PROPIETARIO') ineStatus = `<button class="btn btn-ghost btn-small" type="button" data-ine-client-id="${escapeHtml(client.id)}">Abrir INE</button>`;
         else if (client.hasIne) ineStatus = '<span class="status CONFIRMADO">RESGUARDADA · SOLO ADMIN</span>';
         else if (client.historical) ineStatus = '<span style="color:var(--muted)">Contrato anterior</span>';
-        return `<tr><td><strong>${escapeHtml(client.name)}</strong></td><td>${escapeHtml(client.address)}</td><td>${escapeHtml(client.phone)}</td><td>${ineStatus}</td><td>${escapeHtml(String(client.updatedAt || '').slice(0, 10))}</td></tr>`;
+        return `<tr><td><strong style="font-size:14px">${escapeHtml(client.name)}</strong></td><td>${escapeHtml(client.address)}</td><td>${escapeHtml(client.phone)}</td><td>${ineStatus}</td><td>${escapeHtml(String(client.updatedAt || '').slice(0, 10))}</td></tr>`;
       }).join('') || '<tr><td colspan="5" class="empty">No se encontraron clientes.</td></tr>';
     }
 
@@ -1536,6 +1575,9 @@
       const paymentButton = canRegisterPayment(contract)
         ? `<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-ghost btn-small" type="button" data-partial-payment-id="${escapeHtml(contract.id)}">Registrar abono</button><button class="btn btn-primary btn-small" type="button" data-register-payment-id="${escapeHtml(contract.id)}">Liquidar saldo ${money(contract.balance)}</button></div>`
         : (contractStatusLabel(contract) === 'LIQUIDADO' ? '<span class="status LIQUIDADO">LIQUIDADO</span>' : '');
+      const regenerateButton = editable
+        ? `<div style="margin-top:10px"><button class="btn btn-ghost btn-small" type="button" data-regenerate-contract-id="${escapeHtml(contract.id)}">Regenerar PDF con diseño actual</button></div>`
+        : '';
       const versionText = managed ? `Versión actual: <strong>${escapeHtml(contract.version || 1)}</strong>` : 'Registro anterior de solo lectura';
       const fileStatus = pdfLink ? `<div style="margin-top:10px">${pdfLink}</div>` : '<div style="margin-top:10px;color:var(--muted)">Archivo original todavía no vinculado.</div>';
       document.getElementById('dialogFields').innerHTML = `<input type="hidden" name="id" value="${escapeHtml(contract.id)}"><input type="hidden" name="expectedVersion" value="${escapeHtml(contract.version || '')}">` + fields.map(([name, label, value, type], index) => {
@@ -1544,7 +1586,7 @@
         const step = type === 'number' ? ' step="0.01" min="1"' : '';
         const required = editable && name !== 'overrideReason' ? 'required' : '';
         return `<div class="field ${fieldClass}"><label for="${inputId}">${escapeHtml(label)}</label><input id="${inputId}" name="${name}" type="${type}" value="${escapeHtml(value ?? '')}"${step} ${editable ? required : 'disabled'}></div>`;
-      }).join('') + `<div class="field full warning">Pagado: <strong>${money(contract.paid)}</strong> · Saldo: <strong>${money(contract.balance)}</strong> · ${versionText}${paymentButton ? `<div style="margin-top:10px">${paymentButton}</div>` : ''}${fileStatus}${ineButton ? `<div style="margin-top:10px">${ineButton}</div>` : ''}</div>`;
+      }).join('') + `<div class="field full warning">Pagado: <strong>${money(contract.paid)}</strong> · Saldo: <strong>${money(contract.balance)}</strong> · ${versionText}${regenerateButton}${paymentButton ? `<div style="margin-top:10px">${paymentButton}</div>` : ''}${fileStatus}${ineButton ? `<div style="margin-top:10px">${ineButton}</div>` : ''}</div>`;
       document.getElementById('cancelControls').style.display = editable ? '' : 'none';
       document.getElementById('cancelReason').value = '';
       document.querySelector('#editForm button[type="submit"]').style.display = editable ? '' : 'none';
@@ -1556,6 +1598,26 @@
       const form = document.getElementById(formId);
       ['input', 'change'].forEach(eventName => form.addEventListener(eventName, () => { state.formDirty[stateKey] = true; }));
       form.addEventListener('reset', () => { state.formDirty[stateKey] = false; });
+    }
+
+    async function regenerateContractPdfFromPanel(id) {
+      const contract = contractItems().find(item => String(item.id) === String(id));
+      if (!contract || contract.source !== 'CONTRATO') return toast('No se encontró el contrato administrado.', true);
+      if (state.selectedContract && String(state.selectedContract.id) === String(id) && state.formDirty.edit) {
+        return toast('Guarda primero los cambios del contrato antes de regenerar el PDF.', true);
+      }
+      showLoading(`Regenerando PDF ${contract.contractNumber}…`);
+      try {
+        await callServer('regenerateContractPdf', { id:contract.id, expectedVersion:contract.version });
+        if (state.selectedContract && String(state.selectedContract.id) === String(id)) {
+          document.getElementById('contractDialog').close();
+        }
+        await loadLatest({ message:`PDF ${contract.contractNumber} regenerado con el diseño actual.` });
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        hideLoading();
+      }
     }
 
     document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.view)));
@@ -1573,7 +1635,23 @@
       const button = event.target.closest('[data-ine-client-id]');
       if (button) openPrivateIne({ clientId:button.dataset.ineClientId });
     });
+    document.getElementById('agendaOwnerContent').addEventListener('click', event => {
+      const card = event.target.closest('[data-agenda-contract-id]');
+      if (card) openContract(card.dataset.agendaContractId);
+    });
+    document.getElementById('agendaOwnerContent').addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const card = event.target.closest('[data-agenda-contract-id]');
+      if (!card) return;
+      event.preventDefault();
+      openContract(card.dataset.agendaContractId);
+    });
     document.getElementById('dialogFields').addEventListener('click', event => {
+      const regenerateButton = event.target.closest('[data-regenerate-contract-id]');
+      if (regenerateButton) {
+        regenerateContractPdfFromPanel(regenerateButton.dataset.regenerateContractId);
+        return;
+      }
       const partialPaymentButton = event.target.closest('[data-partial-payment-id]');
       if (partialPaymentButton) {
         preparePartialPayment(partialPaymentButton.dataset.partialPaymentId);
@@ -1590,6 +1668,11 @@
       else openPrivateIne({ clientId:button.dataset.ineClientId });
     });
     document.getElementById('contractsBody').addEventListener('click', event => {
+      const regenerateButton = event.target.closest('[data-regenerate-contract-id]');
+      if (regenerateButton) {
+        regenerateContractPdfFromPanel(regenerateButton.dataset.regenerateContractId);
+        return;
+      }
       const partialPaymentButton = event.target.closest('[data-partial-payment-id]');
       if (partialPaymentButton) {
         preparePartialPayment(partialPaymentButton.dataset.partialPaymentId);

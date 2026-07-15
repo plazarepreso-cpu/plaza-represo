@@ -135,7 +135,7 @@ def draw_info_card(pdf, x: float, y: float, width: float, height: float, title: 
     pdf.roundRect(x, y + height - 24, width, 24, 7, stroke=0, fill=1)
     pdf.rect(x, y + height - 24, width, 12, stroke=0, fill=1)
     pdf.setFillColor(WHITE)
-    pdf.setFont("Helvetica-Bold", 8)
+    pdf.setFont("Helvetica-Bold", 9)
     pdf.drawCentredString(x + width / 2, y + height - 16, title)
     draw_paragraph(
         pdf,
@@ -143,7 +143,7 @@ def draw_info_card(pdf, x: float, y: float, width: float, height: float, title: 
         x + 9,
         y + height - 32,
         width - 18,
-        paragraph_style(f"{title}-body", 7.15, 11.1),
+        paragraph_style(f"{title}-body", 8, 12.2),
     )
 
 
@@ -176,7 +176,7 @@ def draw_contract(pdf, contract: dict, clauses: list[str]) -> None:
         f'<b><font color="#C52222">EVENTO</font></b>  {html.escape(contract["eventType"])}'
     )
     client_body = (
-        f'<b><font color="#C52222">NOMBRE</font></b>  {html.escape(contract["clientName"])}<br/>'
+        f'<b><font color="#C52222">NOMBRE</font></b>  <b><font size="9">{html.escape(contract["clientName"])} </font></b><br/>'
         f'<b><font color="#C52222">DOMICILIO</font></b>  {html.escape(contract["address"])}<br/>'
         f'<b><font color="#C52222">TELÉFONO</font></b>  {html.escape(contract["phone"])}'
     )
@@ -187,28 +187,28 @@ def draw_contract(pdf, contract: dict, clauses: list[str]) -> None:
         f'<b><font color="#C52222">SALDO</font></b>  {money(contract["balance"])}<br/>'
         f'<b><font color="#15803D">{status}</font></b>'
     )
-    draw_info_card(pdf, 30, 535, 172, 104, "DATOS DEL EVENTO", event_body)
-    draw_info_card(pdf, 210, 535, 205, 104, "DATOS DEL CLIENTE", client_body)
-    draw_info_card(pdf, 423, 535, 159, 104, "PAGOS", payment_body)
+    draw_info_card(pdf, 30, 525, 172, 114, "DATOS DEL EVENTO", event_body)
+    draw_info_card(pdf, 210, 525, 205, 114, "DATOS DEL CLIENTE", client_body)
+    draw_info_card(pdf, 423, 525, 159, 114, "PAGOS", payment_body)
 
     intro = (
         "Se celebra este contrato entre el <b>ARRENDADOR</b>, Salón de Eventos Plaza Represo, "
         "y el <b>ARRENDATARIO(A)</b> antes mencionado, quienes aceptan las siguientes cláusulas:"
     )
-    draw_paragraph(pdf, intro, 38, 511, 536, paragraph_style("intro", 7.3, 9, align=TA_CENTER))
+    draw_paragraph(pdf, intro, 38, 500, 536, paragraph_style("intro", 8, 10.5, align=TA_CENTER))
 
     pdf.setFillColor(INK)
-    pdf.roundRect(214, 468, 184, 21, 5, stroke=0, fill=1)
+    pdf.roundRect(214, 456, 184, 23, 5, stroke=0, fill=1)
     pdf.setStrokeColor(GOLD)
     pdf.setLineWidth(1)
-    pdf.roundRect(214, 468, 184, 21, 5, stroke=1, fill=0)
+    pdf.roundRect(214, 456, 184, 23, 5, stroke=1, fill=0)
     pdf.setFillColor(WHITE)
     pdf.setFont("Helvetica-Bold", 9)
-    pdf.drawCentredString(306, 475, "CLÁUSULAS")
+    pdf.drawCentredString(306, 464, "CLÁUSULAS")
 
-    top = 468
-    minimum_heights = (26, 42, 34, 24, 36, 31, 40, 30, 27)
-    clause_style = paragraph_style("clause", 6.9, 8.2)
+    top = 456
+    minimum_heights = (30, 50, 40, 30, 42, 36, 46, 34, 31)
+    clause_style = paragraph_style("clause", 8, 9.8)
     for index, (clause, minimum) in enumerate(zip(clauses, minimum_heights), start=1):
         paragraph = Paragraph(html.escape(clause), clause_style)
         _, text_height = paragraph.wrap(498, 100)
