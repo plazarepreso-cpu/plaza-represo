@@ -40,6 +40,10 @@ assert.match(html, /client\.hasIne && state\.data\.user\.role === 'PROPIETARIO'/
 assert.match(html, /Abrir INE privada/, 'el propietario puede abrir la INE desde el detalle del contrato');
 assert.match(html, /callServer\('getPrivateIneUrl', payload\)/, 'la INE se solicita al endpoint privado al abrirla');
 assert.match(html, /id="syncFilesButton"/, 'el panel incluye la vinculación de contratos de Drive');
+assert.match(html, /Buscar número, cliente o teléfono/, 'el buscador de contratos anuncia que también acepta teléfono');
+assert.match(html, /function digitsOnly\(value\)/, 'el panel normaliza teléfonos con espacios o guiones');
+assert.match(html, /function matchesSearch\(query, values, phone\)/, 'el filtro reutiliza una búsqueda segura por nombre, número y teléfono');
+assert.match(html, /matchesSearch\(query, \[contract\.contractNumber, contract\.clientName\], contract\.phone\)/, 'la tabla de contratos consulta el teléfono');
 assert.match(html, /callServer\('syncExistingContractFiles'\)/, 'el botón de archivos llama a la sincronización segura');
 assert.match(html, /id="historicalIneFiles"[^>]*accept="application\/zip,\.zip/, 'el propietario puede seleccionar un ZIP de INE históricas');
 assert.match(html, /window\.JSZip\.loadAsync\(file\)/, 'el ZIP se procesa localmente antes de importar');

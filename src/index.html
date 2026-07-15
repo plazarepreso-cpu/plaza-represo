@@ -331,7 +331,7 @@
         </section>
 
         <section class="view owner-only" id="view-contracts">
-          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios. Registra un abono parcial o liquida el saldo sin crear otro contrato.</p></div><div class="filters"><button class="btn btn-ghost owner-only" type="button" id="syncFilesButton">Vincular archivos de Drive</button><div><label class="sr-only" for="contractSearch">Buscar contrato</label><input id="contractSearch" placeholder="Buscar número o cliente"></div><div><label class="sr-only" for="contractStatus">Filtrar por estado</label><select id="contractStatus"><option value="">Todos</option><option>PENDIENTE</option><option>LIQUIDADO</option><option>CANCELADO</option><option>CALENDARIO</option><option>ERROR</option></select></div></div></div>
+          <div class="page-head"><div><h3>Contratos</h3><p>Consulta saldos, documentos y cambios. Registra un abono parcial o liquida el saldo sin crear otro contrato.</p></div><div class="filters"><button class="btn btn-ghost owner-only" type="button" id="syncFilesButton">Vincular archivos de Drive</button><div><label class="sr-only" for="contractSearch">Buscar contrato</label><input id="contractSearch" placeholder="Buscar número, cliente o teléfono"></div><div><label class="sr-only" for="contractStatus">Filtrar por estado</label><select id="contractStatus"><option value="">Todos</option><option>PENDIENTE</option><option>LIQUIDADO</option><option>CANCELADO</option><option>CALENDARIO</option><option>ERROR</option></select></div></div></div>
           <div class="card table-wrap"><table class="data"><thead><tr><th>Contrato</th><th>Evento</th><th>Cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th></th></tr></thead><tbody id="contractsBody"></tbody></table></div>
         </section>
 
@@ -904,6 +904,15 @@
     }
 
     function statusClass(status) { return String(status || '').toUpperCase().replace(/[^A-Z0-9_-]/g, ''); }
+    function digitsOnly(value) { return String(value || '').replace(/\D/g, ''); }
+    function matchesSearch(query, values, phone) {
+      const textQuery = String(query || '').trim().toLocaleLowerCase('es-MX');
+      if (!textQuery) return true;
+      const text = (values || []).map(value => String(value || '')).join(' ').toLocaleLowerCase('es-MX');
+      if (text.includes(textQuery)) return true;
+      const phoneQuery = digitsOnly(textQuery);
+      return phoneQuery.length >= 3 && digitsOnly(phone).includes(phoneQuery);
+    }
     function contractStatusLabel(contract) {
       const status = String(contract?.status || contract || '').toUpperCase();
       if (status === 'CANCELADO' || status === 'ERROR' || status === 'GENERANDO' || status === 'CALENDARIO') return status;
@@ -1196,10 +1205,10 @@
     }
 
     function renderContracts() {
-      const query = document.getElementById('contractSearch').value.trim().toLowerCase();
+      const query = document.getElementById('contractSearch').value;
       const statusFilter = document.getElementById('contractStatus').value;
       const rows = contractItems()
-        .filter(contract => (!query || `${contract.contractNumber} ${contract.clientName}`.toLowerCase().includes(query)) && (!statusFilter || contractStatusLabel(contract) === statusFilter))
+        .filter(contract => matchesSearch(query, [contract.contractNumber, contract.clientName], contract.phone) && (!statusFilter || contractStatusLabel(contract) === statusFilter))
         .sort(compareEventsDescending);
       document.getElementById('contractsBody').innerHTML = rows.map(contract => {
         const status = contractStatusLabel(contract);
@@ -1341,9 +1350,9 @@
     }
 
     function renderClients() {
-      const query = document.getElementById('clientSearch').value.trim().toLowerCase();
+      const query = document.getElementById('clientSearch').value;
       const clients = clientItems()
-        .filter(client => !query || `${client.name} ${client.phone}`.toLowerCase().includes(query))
+        .filter(client => matchesSearch(query, [client.name], client.phone))
         .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es'));
       document.getElementById('clientsBody').innerHTML = clients.map(client => {
         let ineStatus = '<span style="color:var(--muted)">No guardada</span>';
