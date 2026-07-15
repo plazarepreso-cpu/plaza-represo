@@ -9,6 +9,7 @@ function todayIso_() {
 const DOMAIN_LIMITS_ = Object.freeze({
   CLIENT_NAME: 120,
   EVENT_TYPE: 120,
+  NOTES: 300,
   ADDRESS: 300,
   OVERRIDE_REASON: 300,
   PHONE_DISPLAY: 25,
@@ -114,6 +115,7 @@ function validateContractPayload_(payload, excludingId) {
   const textLimits = [
     ['clientName', 'El nombre del cliente', DOMAIN_LIMITS_.CLIENT_NAME],
     ['eventType', 'El tipo de evento', DOMAIN_LIMITS_.EVENT_TYPE],
+    ['notes', 'La nota', DOMAIN_LIMITS_.NOTES],
     ['address', 'El domicilio', DOMAIN_LIMITS_.ADDRESS]
   ];
   textLimits.forEach(item => {

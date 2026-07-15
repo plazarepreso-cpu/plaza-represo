@@ -149,6 +149,7 @@
     .agenda-card .agenda-date { color: var(--orange-dark); font-weight: 850; }
     .agenda-card h4 { margin: 8px 0 5px; }
     .agenda-card p { color: var(--muted); font-size: 12px; line-height: 1.45; margin: 4px 0; }
+    .agenda-card .agenda-note-label { color: var(--ink); font-weight: 800; }
     .agenda-only-card { max-width: 680px; padding: 31px; text-align: center; }
     .agenda-only-icon { width: 58px; height: 58px; display: grid; place-items: center; margin: 0 auto 15px; color: #7c2d12; background: var(--soft); border: 1px solid #fed7aa; border-radius: 18px; font-size: 26px; }
     .agenda-only-card h4 { margin: 0; font-size: 21px; }
@@ -289,6 +290,7 @@
                 <div class="field"><label for="elaborationDate">Fecha de elaboración</label><input id="elaborationDate" name="elaborationDate" type="date" required></div>
                 <div class="field"><label for="eventDate">Fecha del evento</label><input id="eventDate" name="eventDate" type="date" required></div>
                 <div class="field"><label for="eventType">Tipo de evento</label><input id="eventType" name="eventType" required placeholder="Ej. Fiesta infantil"></div>
+                <div class="field"><label for="eventNotes">Nota</label><input id="eventNotes" name="notes" placeholder="Ej. Sin brincolín"></div>
                 <div class="field"><label for="startTime">Hora de inicio</label><input id="startTime" name="startTime" type="time" required value="18:00"></div>
                 <div class="field"><label for="endTime">Hora de término</label><input id="endTime" name="endTime" type="time" required value="23:00"></div>
                 <div class="field"><label for="eventDuration">Duración</label><input id="eventDuration" value="5 horas" disabled></div>
@@ -877,6 +879,22 @@
       return { day:String(date.getDate()).padStart(2, '0'), month:date.toLocaleDateString('es-MX', { month:'short' }).replace('.', '') };
     }
 
+    function fullEventDate(event) {
+      const raw = String(event?.eventDate || '');
+      const date = new Date(`${raw}T12:00:00`);
+      if (Number.isNaN(date.getTime())) return raw || 'Fecha pendiente';
+      const weekday = date.toLocaleDateString('es-MX', { weekday:'long' });
+      const written = date.toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' });
+      return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${written}`;
+    }
+
+    function agendaPaymentText(event, contract) {
+      const source = contract || event || {};
+      const balance = Number(source.balance);
+      if (Number.isFinite(balance)) return balance <= 0 ? 'Liquidado · Todo pagado' : `Debe ${money(balance)}`;
+      return 'Monto por confirmar';
+    }
+
     function statusClass(status) { return String(status || '').toUpperCase().replace(/[^A-Z0-9_-]/g, ''); }
     function contractStatusLabel(contract) {
       const status = String(contract?.status || contract || '').toUpperCase();
@@ -1115,12 +1133,14 @@
         const heading = event.contractNumber ? `${event.contractNumber} — ${agendaName(event)}` : agendaName(event);
         const contract = relatedAgendaContract(event);
         const canOpen = Boolean(contract);
+        const paymentText = agendaPaymentText(event, contract);
+        const note = String(contract?.notes || event.notes || '').trim() || 'Sin indicaciones adicionales.';
         const detail = canOpen
-          ? 'Haz clic para ver el contrato, corregir datos o registrar un abono.'
-          : `Google Calendar${event.calendarName ? ` · ${event.calendarName}` : ''}${event.location ? ` · ${event.location}` : ''}`;
+          ? `<strong>${escapeHtml(paymentText)}</strong><br><span class="agenda-note-label">Nota:</span> ${escapeHtml(note)}`
+          : `Google Calendar${event.calendarName ? ` · ${event.calendarName}` : ''}${event.location ? ` · ${event.location}` : ''}<br><span class="agenda-note-label">Nota:</span> ${escapeHtml(note)}`;
         const openAttributes = canOpen ? ` data-agenda-contract-id="${escapeHtml(contract.id)}" tabindex="0" role="button" aria-label="Abrir detalles de ${escapeHtml(heading)}"` : '';
         const openHint = canOpen ? '<p class="agenda-open-hint">Ver detalles del contrato</p>' : '';
-        return `<article class="card agenda-card ${canOpen ? 'has-details' : ''} ${status === 'CANCELADO' ? 'cancelled' : ''} ${isNext ? 'next-event' : ''}"${openAttributes}>${isNext ? '<span class="next-event-label">SIGUIENTE EVENTO</span>' : ''}<div class="agenda-date">${escapeHtml(event.eventDay || dayName(event.eventDate))} · ${escapeHtml(event.eventDate)}</div><h4>${escapeHtml(heading)}</h4><p><strong>${escapeHtml(event.startTime)} a ${escapeHtml(event.endTime)}</strong> · ${escapeHtml(event.eventType || 'Evento')}</p><p>${escapeHtml(detail)}</p><span class="status ${statusClass(badge)}">${escapeHtml(badge)}</span>${openHint}</article>`;
+        return `<article class="card agenda-card ${canOpen ? 'has-details' : ''} ${status === 'CANCELADO' ? 'cancelled' : ''} ${isNext ? 'next-event' : ''}"${openAttributes}>${isNext ? '<span class="next-event-label">SIGUIENTE EVENTO</span>' : ''}<div class="agenda-date">${escapeHtml(fullEventDate(event))}</div><h4>${escapeHtml(heading)}</h4><p><strong>${escapeHtml(event.startTime)} a ${escapeHtml(event.endTime)}</strong> · ${escapeHtml(event.eventType || 'Evento')}</p><p>${detail}</p><span class="status ${statusClass(badge)}">${escapeHtml(badge)}</span>${openHint}</article>`;
     }
 
     function renderAgenda() {
@@ -1576,7 +1596,7 @@
       const editable = state.data.user.role === 'PROPIETARIO' && managed && contract.status !== 'CANCELADO';
       const fields = [
         ['clientName', 'Nombre', contract.clientName, 'text'], ['phone', 'Teléfono', contract.phone, 'text'], ['address', 'Domicilio', contract.address, 'text'],
-        ['elaborationDate', 'Elaboración', contract.elaborationDate, 'date'], ['eventDate', 'Fecha del evento', contract.eventDate, 'date'], ['eventType', 'Tipo de evento', contract.eventType, 'text'],
+        ['elaborationDate', 'Elaboración', contract.elaborationDate, 'date'], ['eventDate', 'Fecha del evento', contract.eventDate, 'date'], ['eventType', 'Tipo de evento', contract.eventType, 'text'], ['notes', 'Nota', contract.notes || '', 'text'],
         ['startTime', 'Inicio', contract.startTime, 'time'], ['endTime', 'Término', contract.endTime, 'time'], ['total', 'Pago total', contract.total, 'number'], ['overrideReason', 'Motivo de tarifa especial', contract.overrideReason || '', 'text']
       ];
       const pdfLink = driveFileLink(contract.currentPdfFileId, managed ? 'Abrir PDF vigente' : 'Abrir archivo del contrato');
@@ -1879,7 +1899,7 @@
       payload.total = Number(payload.total);
       payload.initialDeposit = Number(payload.initialDeposit);
       const fingerprint = pendingRequestFingerprint(Object.assign({}, payload, { hasIne:Boolean(state.ineDataUrl) }), [
-        'elaborationDate', 'eventDate', 'startTime', 'endTime', 'eventType', 'clientName',
+        'elaborationDate', 'eventDate', 'startTime', 'endTime', 'eventType', 'notes', 'clientName',
         'address', 'phone', 'total', 'initialDeposit', 'paymentMethod', 'overrideReason', 'hasIne'
       ]);
       payload.requestId = getOrCreatePendingRequestId('contract', fingerprint);

@@ -14,7 +14,7 @@ const APP_CONFIG = Object.freeze({
 const SHEET_HEADERS = Object.freeze({
   Contratos: [
     'id', 'requestId', 'contractNumber', 'version', 'status', 'createdAt', 'updatedAt',
-    'elaborationDate', 'eventDate', 'eventDay', 'startTime', 'endTime', 'eventType',
+    'elaborationDate', 'eventDate', 'eventDay', 'startTime', 'endTime', 'eventType', 'notes',
     'clientId', 'ineFileId', 'clientName', 'address', 'phone', 'total', 'initialDeposit', 'paid',
     'balance', 'overrideReason', 'folderId', 'currentPdfFileId', 'calendarEventId',
     'createdBy', 'updatedBy', 'cancelReason'
@@ -27,7 +27,7 @@ const SHEET_HEADERS = Object.freeze({
   ],
   Agenda: [
     'id', 'calendarId', 'calendarName', 'source', 'title', 'contractNumber', 'clientName',
-    'address', 'phone', 'eventType', 'eventDate', 'eventDay', 'startTime', 'endTime',
+    'address', 'phone', 'eventType', 'notes', 'eventDate', 'eventDay', 'startTime', 'endTime',
     'total', 'paid', 'balance', 'status', 'location', 'updatedAt'
   ],
   Historial: [

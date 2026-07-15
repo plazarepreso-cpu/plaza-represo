@@ -44,8 +44,11 @@ function setCellText_(cell, value, options) {
   cell.setPaddingLeft(settings.paddingLeft);
   cell.setPaddingRight(settings.paddingRight);
   cell.setVerticalAlignment(DocumentApp.VerticalAlignment.CENTER);
-  const paragraph = cell.getChild(0).asParagraph();
-  paragraph.setText(String(value || ''));
+  // Una celda de Google Docs puede conservar párrafos anteriores aunque se
+  // reemplace sólo el primero. Limpiarla por completo evita que, al generar
+  // una nueva versión, se impriman los datos anteriores debajo de los nuevos.
+  cell.clear();
+  const paragraph = cell.appendParagraph(String(value || ''));
   styleText_(paragraph, settings);
   return paragraph;
 }
@@ -219,9 +222,10 @@ function appendContractSummary_(body, contract) {
       background: DOCUMENT_THEME.paper,
       color: DOCUMENT_THEME.ink,
       fontSize: column === 1 ? 8 : 8,
-      paddingTop: 8,
-      paddingBottom: 8,
-      lineSpacing: 1.18
+      paddingTop: 6,
+      paddingBottom: 6,
+      lineSpacing: 1.18,
+      align: DocumentApp.HorizontalAlignment.CENTER
     });
     styleFragments_(detail, [
       { text: 'DÍA', bold: true, color: DOCUMENT_THEME.red },
@@ -255,8 +259,8 @@ function appendClauses_(body) {
       color: DOCUMENT_THEME.gold,
       fontSize: 10,
       bold: true,
-      paddingTop: 4,
-      paddingBottom: 4,
+      paddingTop: 3,
+      paddingBottom: 3,
       paddingLeft: 2,
       paddingRight: 2,
       align: DocumentApp.HorizontalAlignment.CENTER
@@ -284,8 +288,8 @@ function appendContractFooter_(body, contract) {
     color: DOCUMENT_THEME.white,
     fontSize: 10,
     bold: true,
-    paddingTop: 6,
-    paddingBottom: 6,
+    paddingTop: 4,
+    paddingBottom: 4,
     align: DocumentApp.HorizontalAlignment.CENTER
   });
   setCellText_(deposit.getCell(0, 1), `${money_(contract.initialDeposit)} M.N.`, {
@@ -293,14 +297,14 @@ function appendContractFooter_(body, contract) {
     color: DOCUMENT_THEME.ink,
     fontSize: 12,
     bold: true,
-    paddingTop: 6,
-    paddingBottom: 6,
+    paddingTop: 4,
+    paddingBottom: 4,
     align: DocumentApp.HorizontalAlignment.CENTER
   });
 
-  styleText_(body.appendParagraph('PLAZA REPRESO AGRADECE SU PREFERENCIA'), {
-    fontFamily: 'Arial', fontSize: 9, bold: true, color: DOCUMENT_THEME.ink,
-    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 4, spacingAfter: 3
+  styleText_(body.appendParagraph('PLAZA REPRESO AGRADECE SU PREFERENCIA · ESTE ES UN CONTRATO DIGITAL'), {
+    fontFamily: 'Arial', fontSize: 8, bold: true, color: DOCUMENT_THEME.ink,
+    align: DocumentApp.HorizontalAlignment.CENTER, spacingBefore: 2, spacingAfter: 1
   });
 }
 
@@ -310,8 +314,8 @@ function buildContractDocument_(contract) {
   body
     .setPageWidth(612)
     .setPageHeight(792)
-    .setMarginTop(16)
-    .setMarginBottom(14)
+    .setMarginTop(10)
+    .setMarginBottom(8)
     .setMarginLeft(28)
     .setMarginRight(28);
 

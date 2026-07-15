@@ -14,6 +14,7 @@ function calendarDescription_(contract) {
     `Cliente: ${contract.clientName}`,
     `Teléfono: ${contract.phone}`,
     `Tipo: ${contract.eventType}`,
+    `Notas: ${String(contract.notes || '').trim() || 'Sin indicaciones adicionales.'}`,
     `Pago total: ${money_(contract.total)}`,
     `Pagado: ${money_(contract.paid)}`,
     `Saldo: ${money_(contract.balance)}`,
@@ -152,6 +153,7 @@ function calendarEventToAgenda_(event, calendar, source) {
   let eventType = calendarTextField_(combined, 'Tipo') || calendarTextField_(combined, 'Tipo de evento') || calendarTextField_(combined, 'Título');
   const address = calendarTextField_(combined, 'Domicilio');
   const phone = calendarTextField_(combined, 'Teléfono');
+  const notes = calendarTextField_(combined, 'Notas');
   if (!clientName && pipeParts.length >= 2 && calendarContractNumber_(pipeParts[0])) clientName = pipeParts[1];
   clientName = clientName.replace(/\s*\(\s*\d[\d\s-]{6,}\s*\)\.?\s*$/, '').trim();
   if (!eventType && pipeParts.length >= 3 && calendarContractNumber_(pipeParts[0])) eventType = pipeParts.slice(2).join(' | ');
@@ -183,6 +185,7 @@ function calendarEventToAgenda_(event, calendar, source) {
     address,
     phone,
     eventType,
+    notes,
     eventDate,
     eventDay: eventDayName_(eventDate),
     startTime: legacyHours ? legacyHours.startTime : Utilities.formatDate(start, APP_CONFIG.TIME_ZONE, 'HH:mm'),
