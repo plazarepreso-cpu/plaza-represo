@@ -22,7 +22,8 @@ const SHEET_HEADERS = Object.freeze({
   Clientes: ['id', 'name', 'address', 'phone', 'ineFileId', 'createdAt', 'updatedAt'],
   Pagos: [
     'id', 'requestId', 'status', 'contractId', 'contractNumber', 'date', 'amount', 'method', 'note',
-    'receiptFileId', 'createdBy', 'createdAt', 'newPaid', 'newBalance', 'errorMessage'
+    'receiptFileId', 'createdBy', 'createdAt', 'newPaid', 'newBalance', 'errorMessage',
+    'voidedAt', 'voidedBy', 'voidReason'
   ],
   Agenda: [
     'id', 'calendarId', 'calendarName', 'source', 'title', 'contractNumber', 'clientName',

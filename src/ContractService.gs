@@ -420,6 +420,84 @@ function addPayment(payload) {
 }
 
 /**
+ * Anula un movimiento repetido sin borrar el rastro: conserva el recibo y la
+ * auditoría, recalcula el saldo real y vuelve a generar el PDF administrado.
+ */
+function voidPayment(payload) {
+  const user = requireOwner_();
+  const data = payload || {};
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    ensureSchema_();
+    const payment = findObject_('Pagos', 'id', data.id);
+    if (!payment) throw new Error('No se encontró el movimiento.');
+    if (String(payment.status).toUpperCase() === 'ANULADO') return { payment };
+    if (String(payment.status).toUpperCase() !== 'COMPLETADO') {
+      throw new Error('Solo se pueden anular movimientos ya registrados.');
+    }
+
+    let contract = findObject_('Contratos', 'id', payment.contractId);
+    let sheetName = 'Contratos';
+    if (!contract) {
+      contract = findObject_('Historial', 'id', payment.contractId) ||
+        findObject_('Historial', 'contractNumber', payment.contractNumber);
+      sheetName = 'Historial';
+    }
+    if (!contract) throw new Error('No se encontró el contrato de este movimiento.');
+    if (String(contract.status).toUpperCase() === 'CANCELADO') {
+      throw new Error('No se puede corregir un movimiento de un contrato cancelado.');
+    }
+
+    const amount = roundMoney_(payment.amount);
+    const correctedPaid = roundMoney_(Math.max(0, roundMoney_(contract.paid) - amount));
+    const correctedBalance = roundMoney_(roundMoney_(contract.total) - correctedPaid);
+    if (correctedBalance < 0) throw new Error('El movimiento no coincide con el saldo del contrato.');
+
+    const now = nowIso_();
+    const reason = String(data.reason || 'Movimiento duplicado corregido desde el panel.').trim().slice(0, 300);
+    const voidedPayment = updateObject_('Pagos', 'id', payment.id, {
+      status: 'ANULADO',
+      voidedAt: now,
+      voidedBy: user.email,
+      voidReason: reason,
+      errorMessage: reason
+    });
+    let saved;
+    if (sheetName === 'Contratos') {
+      let updated = Object.assign({}, contract, {
+        version: Number(contract.version || 1) + 1,
+        paid: correctedPaid,
+        balance: correctedBalance,
+        status: correctedBalance === 0 ? 'PAGADO' : 'CONFIRMADO',
+        updatedAt: now,
+        updatedBy: user.email
+      });
+      const folder = DriveApp.getFolderById(contract.folderId);
+      const generated = generateContractPdf_(updated, folder);
+      updated.currentPdfFileId = generated.pdfFileId;
+      try { updated.calendarEventId = updateCalendarEvent_(updated); } catch (ignored) {}
+      saved = updateObject_('Contratos', 'id', contract.id, updated);
+      if (typeof syncTeamAgendaAfterCalendarChange_ === 'function') {
+        try { syncTeamAgendaAfterCalendarChange_(); } catch (ignored) {}
+      }
+    } else {
+      saved = updateObject_('Historial', 'id', contract.id, Object.assign({}, contract, {
+        paid: correctedPaid,
+        balance: correctedBalance,
+        status: correctedBalance === 0 ? 'PAGADO' : 'CONFIRMADO',
+        updatedAt: now
+      }));
+    }
+    try { audit_('ANULAR_PAGO_DUPLICADO', 'Pago', payment.id, { contractNumber: payment.contractNumber, amount, reason }); }
+    catch (ignored) {}
+    return { contract:saved, payment:voidedPayment };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
  * Registra un pago sobre un contrato que fue indexado desde archivos anteriores.
  * Estos contratos no tienen carpeta propia administrada por el sistema, por eso
  * sus recibos se guardan en una subcarpeta controlada dentro de la raíz oficial.
@@ -770,6 +848,7 @@ function repairInitialPayment_(contract, folder) {
   if (String(payment.contractId) !== String(contract.id) || roundMoney_(payment.amount) !== initialDeposit) {
     throw new Error('El abono inicial pendiente no coincide con el contrato.');
   }
+  if (String(payment.status) === 'ANULADO') return payment;
   if (String(payment.status) === 'COMPLETADO' && payment.receiptFileId) return payment;
 
   let paidAfterInitial = initialDeposit;

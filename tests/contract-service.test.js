@@ -657,6 +657,38 @@ test('regenerateContractPdf rechaza expectedVersion obsoleta sin crear PDF', () 
   assert.strictEqual(state.lockReleases, 1);
 });
 
+test('voidPayment corrige un abono duplicado, conserva auditoría y devuelve el saldo real', () => {
+  seedContract({ paid:3500, balance:0, total:3500, version:3 });
+  state.sheets.Pagos.push(
+    {
+      id:'pago-real-ficticio', requestId:'apartado-real', status:'COMPLETADO',
+      contractId:'contrato-ficticio-001', contractNumber:'C.9001', date:'2026-07-13',
+      amount:1750, method:'Efectivo', note:'Apartado inicial', receiptFileId:'recibo-real',
+      createdAt:'2026-07-13T09:00:00', newPaid:1750, newBalance:1750
+    },
+    {
+      id:'pago-duplicado-ficticio', requestId:'apartado-duplicado', status:'COMPLETADO',
+      contractId:'contrato-ficticio-001', contractNumber:'C.9001', date:'2026-07-13',
+      amount:1750, method:'Efectivo', note:'Apartado inicial', receiptFileId:'recibo-duplicado',
+      createdAt:'2026-07-13T09:01:00', newPaid:3500, newBalance:0
+    }
+  );
+
+  const result = clone(context.voidPayment({ id:'pago-duplicado-ficticio' }));
+
+  assert.strictEqual(result.payment.status, 'ANULADO');
+  assert.strictEqual(state.sheets.Pagos[0].status, 'COMPLETADO');
+  assert.strictEqual(state.sheets.Pagos[1].status, 'ANULADO');
+  assert.strictEqual(result.contract.paid, 1750);
+  assert.strictEqual(result.contract.balance, 1750);
+  assert.strictEqual(result.contract.status, 'CONFIRMADO');
+  assert.strictEqual(result.contract.version, 4);
+  assert.strictEqual(state.contractPdfCalls.length, 1);
+  assert.strictEqual(state.calendarUpdates.length, 1);
+  assert.strictEqual(state.audits[0].action, 'ANULAR_PAGO_DUPLICADO');
+  assert.strictEqual(state.lockReleases, 1);
+});
+
 test('cancelContract es idempotente y libera el bloqueo sin repetir efectos', () => {
   seedContract({
     version: 4,

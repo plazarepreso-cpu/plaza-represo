@@ -1218,10 +1218,13 @@
         const statusBadge = `<span class="status ${statusClass(paymentStatus)}">${escapeHtml(completed ? 'REGISTRADO' : paymentStatus)}</span>`;
         const balanceAfter = Number.isFinite(Number(payment.newBalance))
           ? `<br><small>Saldo tras este pago: ${money(payment.newBalance)}</small>` : '';
+        const duplicateAction = Number(payment.duplicateCount || 0) > 1
+          ? `<div style="margin-top:6px"><small style="color:var(--orange-dark)">Se detectaron ${Number(payment.duplicateCount) - 1} registro(s) idéntico(s).</small><br><button class="btn btn-danger btn-small" type="button" data-void-payment-id="${escapeHtml(payment.duplicatePaymentId)}">Quitar pago duplicado</button></div>`
+          : '';
         const contract = contractItems().find(item => String(item.id) === String(payment.contractId));
         const editButton = contract?.source === 'CONTRATO'
           ? `<button class="btn btn-ghost btn-small" type="button" data-payment-edit-contract-id="${escapeHtml(contract.id)}">Editar contrato / saldo</button>` : '';
-        return `<div class="money-row"><div><strong>${escapeHtml(payment.contractNumber)}</strong> ${statusBadge}<br><small>${escapeHtml(payment.date)} · ${escapeHtml(payment.method || '')}</small>${balanceAfter}${receiptLink || editButton ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${receiptLink}${editButton}</div>` : ''}</div><strong style="color:${completed ? 'var(--green)' : 'var(--red)'}">${money(payment.amount)}</strong></div>`;
+        return `<div class="money-row"><div><strong>${escapeHtml(payment.contractNumber)}</strong> ${statusBadge}<br><small>${escapeHtml(payment.date)} · ${escapeHtml(payment.method || '')}</small>${balanceAfter}${receiptLink || editButton ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${receiptLink}${editButton}</div>` : ''}${duplicateAction}</div><strong style="color:${completed ? 'var(--green)' : 'var(--red)'}">${money(payment.amount)}</strong></div>`;
       }).join('') || '<div class="empty">No hay pagos registrados.</div>';
     }
 
@@ -1252,15 +1255,25 @@
       const other = [];
       [...(state.data.payments || [])].sort(comparePaymentsDescending).forEach(payment => {
         const status = String(payment.status || '').toUpperCase();
+        if (status === 'ANULADO') return;
         if (status !== 'COMPLETADO') {
           other.push(payment);
           return;
         }
         const key = String(payment.requestId || '').trim()
           || [payment.contractId, payment.date, roundMoney(payment.amount), roundMoney(payment.newBalance), String(payment.note || '').trim().toLowerCase()].join('|');
-        if (!completed.has(key)) completed.set(key, payment);
+        const group = completed.get(key) || [];
+        group.push(payment);
+        completed.set(key, group);
       });
-      return [...completed.values(), ...other].sort(comparePaymentsDescending);
+      const visibleCompleted = [...completed.values()].map(group => {
+        const original = group[group.length - 1];
+        return Object.assign({}, original, group.length > 1 ? {
+          duplicateCount:group.length,
+          duplicatePaymentId:group[0].id
+        } : {});
+      });
+      return [...visibleCompleted, ...other].sort(comparePaymentsDescending);
     }
 
     function preparePaymentMovement(id, { fillLiquidation = false } = {}) {
@@ -1620,6 +1633,23 @@
       }
     }
 
+    async function voidDuplicatePaymentFromPanel(id) {
+      const payment = (state.data.payments || []).find(item => String(item.id) === String(id));
+      if (!payment) return toast('No se encontró el pago duplicado.', true);
+      showLoading(`Corrigiendo movimiento de ${payment.contractNumber}…`);
+      try {
+        await callServer('voidPayment', {
+          id:payment.id,
+          reason:'Movimiento duplicado corregido desde el panel.'
+        });
+        await loadLatest({ message:`Movimiento duplicado de ${payment.contractNumber} corregido. El saldo se actualizó.` });
+      } catch (error) {
+        toast(error.message || 'No se pudo corregir el movimiento.', true);
+      } finally {
+        hideLoading();
+      }
+    }
+
     document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.view)));
     document.querySelectorAll('[data-go]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.go)));
     document.addEventListener('click', event => {
@@ -1687,6 +1717,11 @@
       if (button) openContract(button.dataset.contractId);
     });
     document.getElementById('paymentsList').addEventListener('click', event => {
+      const voidButton = event.target.closest('[data-void-payment-id]');
+      if (voidButton) {
+        voidDuplicatePaymentFromPanel(voidButton.dataset.voidPaymentId);
+        return;
+      }
       const button = event.target.closest('[data-payment-edit-contract-id]');
       if (button) openContract(button.dataset.paymentEditContractId);
     });
