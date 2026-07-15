@@ -32,7 +32,7 @@ const SHEET_HEADERS = Object.freeze({
   ],
   Historial: [
     'id', 'contractNumber', 'status', 'elaborationDate', 'eventDate', 'eventDay',
-    'startTime', 'endTime', 'eventType', 'clientName', 'address', 'phone',
+    'startTime', 'endTime', 'eventType', 'notes', 'clientName', 'address', 'phone',
     'total', 'paid', 'balance', 'source', 'updatedAt'
   ],
   Archivos: ['id', 'contractNumber', 'contractFileId', 'contractFileName', 'updatedAt'],

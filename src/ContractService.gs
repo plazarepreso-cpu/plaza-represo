@@ -327,6 +327,32 @@ function regenerateContractPdf(payload) {
   }
 }
 
+function updateHistoricalNote(payload) {
+  const user = requireOwner_();
+  const data = payload || {};
+  const id = String(data.id || '').trim();
+  const notes = String(data.notes || '').trim();
+  if (!id) throw new Error('No se encontró el contrato anterior.');
+  if (notes.length > DOMAIN_LIMITS_.NOTES) throw new Error(`La nota no puede exceder ${DOMAIN_LIMITS_.NOTES} caracteres.`);
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    ensureSchema_();
+    const historical = findObject_('Historial', 'id', id);
+    if (!historical) throw new Error('No se encontró el contrato anterior.');
+    const saved = updateObject_('Historial', 'id', id, Object.assign({}, historical, {
+      notes,
+      updatedAt: nowIso_()
+    }));
+    try { audit_('ACTUALIZAR_NOTA_HISTORICA', 'Contrato', id, { contractNumber:historical.contractNumber, notes }); }
+    catch (ignored) {}
+    return saved;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function addPayment(payload) {
   const user = requireOwner_();
   const data = payload || {};

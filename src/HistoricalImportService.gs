@@ -19,6 +19,7 @@ function normalizeHistoricalContract_(record) {
     startTime: String(source.startTime || '').trim(),
     endTime: String(source.endTime || '').trim(),
     eventType: String(source.eventType || '').trim(),
+    notes: String(source.notes || '').trim(),
     clientName: String(source.clientName || '').trim(),
     address: String(source.address || '').trim(),
     phone: String(source.phone || '').trim(),
@@ -75,6 +76,7 @@ function indexHistoricalContracts(payload) {
       try {
         const data = normalizeHistoricalContract_(record);
         const timestamp = nowIso_();
+        const previous = byNumber.get(data.contractNumber);
         const item = {
           id: `historial:${data.contractNumber}`,
           contractNumber: data.contractNumber,
@@ -85,6 +87,7 @@ function indexHistoricalContracts(payload) {
           startTime: data.startTime,
           endTime: data.endTime,
           eventType: data.eventType,
+          notes: data.notes || String(previous && previous.notes || '').trim(),
           clientName: data.clientName,
           address: data.address,
           phone: data.phone,
@@ -94,7 +97,6 @@ function indexHistoricalContracts(payload) {
           source: 'ARCHIVO_ANTERIOR',
           updatedAt: timestamp
         };
-        const previous = byNumber.get(data.contractNumber);
         if (previous) {
           const preserveFinancials = contractsWithRegisteredPayments.has(String(previous.id || '').trim());
           if (preserveFinancials) {

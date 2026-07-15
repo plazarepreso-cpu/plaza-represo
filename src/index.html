@@ -406,7 +406,7 @@
     <form id="editForm" method="dialog">
       <div class="dialog-head"><h3 id="dialogTitle">Contrato</h3><button class="dialog-close" type="button" id="dialogClose" aria-label="Cerrar contrato">×</button></div>
       <div class="dialog-body"><div class="form-grid" id="dialogFields"></div></div>
-      <div class="dialog-actions"><div class="cancel-controls owner-only" id="cancelControls"><label class="sr-only" for="cancelReason">Motivo de cancelación</label><input id="cancelReason" placeholder="Motivo de cancelación"><button class="btn btn-danger btn-small" type="button" id="cancelContractButton">Cancelar contrato</button></div><div style="display:flex;gap:8px"><button class="btn btn-ghost" type="button" id="closeContractButton">Cerrar</button><button class="btn btn-primary owner-only" type="submit">Guardar nueva versión</button></div></div>
+      <div class="dialog-actions"><div class="cancel-controls owner-only" id="cancelControls"><label class="sr-only" for="cancelReason">Motivo de cancelación</label><input id="cancelReason" placeholder="Motivo de cancelación"><button class="btn btn-danger btn-small" type="button" id="cancelContractButton">Cancelar contrato</button></div><div style="display:flex;gap:8px"><button class="btn btn-ghost" type="button" id="closeContractButton">Cerrar</button><button class="btn btn-primary owner-only" type="submit" id="saveContractButton">Guardar nueva versión</button></div></div>
     </form>
   </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -759,6 +759,14 @@
         if (client) Object.assign(client, { name:updated.clientName, address:updated.address, phone:updated.phone, updatedAt });
         saveMock(db);
         return updated;
+      }
+      if (method === 'updateHistoricalNote') {
+        const contract = db.history.find(item => String(item.id) === String(payload.id));
+        if (!contract) throw new Error('No se encontró el contrato anterior.');
+        contract.notes = String(payload.notes || '').trim();
+        contract.updatedAt = nowLocalIso();
+        saveMock(db);
+        return contract;
       }
       if (method === 'cancelContract') {
         const contract = db.contracts.find(item => item.id === payload.id);
@@ -1594,6 +1602,7 @@
       document.getElementById('dialogTitle').textContent = `${contract.contractNumber} · ${contractStatusLabel(contract)}`;
       const managed = contract.source === 'CONTRATO';
       const editable = state.data.user.role === 'PROPIETARIO' && managed && contract.status !== 'CANCELADO';
+      const noteOnlyEditable = state.data.user.role === 'PROPIETARIO' && contract.source === 'ARCHIVO_ANTERIOR';
       const fields = [
         ['clientName', 'Nombre', contract.clientName, 'text'], ['phone', 'Teléfono', contract.phone, 'text'], ['address', 'Domicilio', contract.address, 'text'],
         ['elaborationDate', 'Elaboración', contract.elaborationDate, 'date'], ['eventDate', 'Fecha del evento', contract.eventDate, 'date'], ['eventType', 'Tipo de evento', contract.eventType, 'text'], ['notes', 'Nota', contract.notes || '', 'text'],
@@ -1614,18 +1623,21 @@
       const regenerateButton = editable
         ? `<div style="margin-top:10px"><button class="btn btn-ghost btn-small" type="button" data-regenerate-contract-id="${escapeHtml(contract.id)}">Regenerar PDF con diseño actual</button></div>`
         : '';
-      const versionText = managed ? `Versión actual: <strong>${escapeHtml(contract.version || 1)}</strong>` : 'Registro anterior de solo lectura';
+      const versionText = managed ? `Versión actual: <strong>${escapeHtml(contract.version || 1)}</strong>` : (noteOnlyEditable ? 'Registro anterior: puedes actualizar únicamente la nota operativa.' : 'Registro anterior de solo lectura');
       const fileStatus = pdfLink ? `<div style="margin-top:10px">${pdfLink}</div>` : '<div style="margin-top:10px;color:var(--muted)">Archivo original todavía no vinculado.</div>';
       document.getElementById('dialogFields').innerHTML = `<input type="hidden" name="id" value="${escapeHtml(contract.id)}"><input type="hidden" name="expectedVersion" value="${escapeHtml(contract.version || '')}">` + fields.map(([name, label, value, type], index) => {
         const inputId = `edit-${name}`;
         const fieldClass = name === 'address' || name === 'overrideReason' ? 'full' : (index < 2 ? 'half' : '');
         const step = type === 'number' ? ' step="0.01" min="1"' : '';
         const required = editable && name !== 'overrideReason' ? 'required' : '';
-        return `<div class="field ${fieldClass}"><label for="${inputId}">${escapeHtml(label)}</label><input id="${inputId}" name="${name}" type="${type}" value="${escapeHtml(value ?? '')}"${step} ${editable ? required : 'disabled'}></div>`;
+        const canEditField = editable || (noteOnlyEditable && name === 'notes');
+        return `<div class="field ${fieldClass}"><label for="${inputId}">${escapeHtml(label)}</label><input id="${inputId}" name="${name}" type="${type}" value="${escapeHtml(value ?? '')}"${step} ${canEditField ? required : 'disabled'}></div>`;
       }).join('') + `<div class="field full warning">Pagado: <strong>${money(contract.paid)}</strong> · Saldo: <strong>${money(contract.balance)}</strong> · ${versionText}${regenerateButton}${paymentButton ? `<div style="margin-top:10px">${paymentButton}</div>` : ''}${fileStatus}${ineButton ? `<div style="margin-top:10px">${ineButton}</div>` : ''}</div>`;
       document.getElementById('cancelControls').style.display = editable ? '' : 'none';
       document.getElementById('cancelReason').value = '';
-      document.querySelector('#editForm button[type="submit"]').style.display = editable ? '' : 'none';
+      const saveButton = document.getElementById('saveContractButton');
+      saveButton.style.display = editable || noteOnlyEditable ? '' : 'none';
+      saveButton.textContent = editable ? 'Guardar nueva versión' : 'Guardar nota';
       document.getElementById('contractDialog').showModal();
       document.getElementById('dialogClose').focus();
     }
@@ -1981,6 +1993,21 @@
     document.getElementById('editForm').addEventListener('submit', async event => {
       event.preventDefault();
       const payload = Object.fromEntries(new FormData(event.target).entries());
+      const historicalNoteOnly = state.selectedContract?.source === 'ARCHIVO_ANTERIOR';
+      if (historicalNoteOnly) {
+        showLoading('Guardando nota…');
+        try {
+          await callServer('updateHistoricalNote', { id:state.selectedContract.id, notes:payload.notes || '' });
+          state.formDirty.edit = false;
+          document.getElementById('contractDialog').close();
+          await loadLatest({ message:'Nota del contrato anterior actualizada.' });
+        } catch (error) {
+          toast(error.message, true);
+        } finally {
+          hideLoading();
+        }
+        return;
+      }
       payload.total = Number(payload.total);
       payload.expectedVersion = Number(payload.expectedVersion);
       showLoading('Creando nueva versión…');
