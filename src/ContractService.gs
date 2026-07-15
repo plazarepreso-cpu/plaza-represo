@@ -76,16 +76,26 @@ function getViewerAgenda_() {
     .filter(item => String(item.status || '').toUpperCase() !== 'CANCELADO')
     .filter(item => String(item.eventDate || '') >= todayIso_())
     .sort((a, b) => `${a.eventDate || ''} ${a.startTime || ''}`.localeCompare(`${b.eventDate || ''} ${b.startTime || ''}`))
-    .map(item => ({
-      contractNumber: String(item.contractNumber || '').trim(),
-      clientName: String(item.clientName || item.title || 'Evento reservado').trim(),
-      eventDate: String(item.eventDate || '').trim(),
-      eventDay: String(item.eventDay || '').trim(),
-      startTime: String(item.startTime || '').trim(),
-      endTime: String(item.endTime || '').trim(),
-      eventType: String(item.eventType || 'Evento').trim(),
-      notes: String(item.notes || '').trim()
-    }));
+    .map(item => {
+      // El equipo sólo necesita saber si falta dinero y cuánto; nunca recibe
+      // el total, pagos realizados, archivos, identificaciones o IDs internos.
+      const rawBalance = item.balance;
+      const hasBalance = rawBalance !== '' && rawBalance !== null && rawBalance !== undefined && Number.isFinite(Number(rawBalance));
+      const balance = hasBalance ? roundMoney_(Number(rawBalance)) : null;
+      const paymentStatus = balance === null ? '' : (balance <= 0 ? 'LIQUIDADO' : 'PENDIENTE');
+      return {
+        contractNumber: String(item.contractNumber || '').trim(),
+        clientName: String(item.clientName || item.title || 'Evento reservado').trim(),
+        eventDate: String(item.eventDate || '').trim(),
+        eventDay: String(item.eventDay || '').trim(),
+        startTime: String(item.startTime || '').trim(),
+        endTime: String(item.endTime || '').trim(),
+        eventType: String(item.eventType || 'Evento').trim(),
+        notes: String(item.notes || '').trim(),
+        paymentStatus,
+        pendingBalance: paymentStatus === 'PENDIENTE' ? balance : null
+      };
+    });
 }
 
 function getDuplicatePaymentGroups(contractNumber) {

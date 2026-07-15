@@ -1169,7 +1169,12 @@
       const heading = event.contractNumber ? `${event.contractNumber} — ${agendaName(event)}` : agendaName(event);
       const note = String(event.notes || '').trim() || 'Sin indicaciones adicionales.';
       const isNext = index === 0;
-      return `<article class="card agenda-card has-details ${isNext ? 'next-event' : ''}" data-viewer-event-index="${index}" tabindex="0" role="button" aria-label="Abrir detalles de ${escapeHtml(heading)}">${isNext ? '<span class="next-event-label">SIGUIENTE EVENTO</span>' : ''}<div class="agenda-date">${escapeHtml(fullEventDate(event))}</div><h4>${escapeHtml(heading)}</h4><p><strong>${escapeHtml(event.startTime)} a ${escapeHtml(event.endTime)}</strong> · ${escapeHtml(event.eventType || 'Evento')}</p><p><span class="agenda-note-label">Nota:</span> ${escapeHtml(note)}</p><span class="status PROXIMO">PRÓXIMO</span><p class="agenda-open-hint">Ver detalles del evento</p></article>`;
+      const payment = event.paymentStatus === 'LIQUIDADO'
+        ? '<p><span class="status LIQUIDADO">LIQUIDADO</span> <strong>Todo pagado</strong></p>'
+        : event.paymentStatus === 'PENDIENTE'
+          ? `<p><span class="status PENDIENTE">SALDO PENDIENTE</span> <strong>${escapeHtml(money(event.pendingBalance))}</strong></p>`
+          : '';
+      return `<article class="card agenda-card has-details ${isNext ? 'next-event' : ''}" data-viewer-event-index="${index}" tabindex="0" role="button" aria-label="Abrir detalles de ${escapeHtml(heading)}">${isNext ? '<span class="next-event-label">SIGUIENTE EVENTO</span>' : ''}<div class="agenda-date">${escapeHtml(fullEventDate(event))}</div><h4>${escapeHtml(heading)}</h4><p><strong>${escapeHtml(event.startTime)} a ${escapeHtml(event.endTime)}</strong> · ${escapeHtml(event.eventType || 'Evento')}</p>${payment}<p><span class="agenda-note-label">Nota:</span> ${escapeHtml(note)}</p><span class="status PROXIMO">PRÓXIMO</span><p class="agenda-open-hint">Ver detalles del evento</p></article>`;
     }
 
     function openViewerEvent(index) {
@@ -1183,6 +1188,8 @@
         ['Tipo de evento', event.eventType || 'Evento'],
         ['Nota', String(event.notes || '').trim() || 'Sin indicaciones adicionales.']
       ];
+      if (event.paymentStatus === 'LIQUIDADO') details.splice(4, 0, ['Pago', 'Liquidado · Todo pagado']);
+      if (event.paymentStatus === 'PENDIENTE') details.splice(4, 0, ['Saldo pendiente', money(event.pendingBalance)]);
       document.getElementById('viewerEventDetails').innerHTML = details.map(([label, value]) => `<div class="field ${label === 'Nota' ? 'full' : 'half'}"><label>${escapeHtml(label)}</label><div class="warning" style="margin:0">${escapeHtml(value)}</div></div>`).join('');
       document.getElementById('viewerEventDialog').showModal();
       document.getElementById('closeViewerEvent').focus();
