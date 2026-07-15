@@ -58,6 +58,31 @@ function getBootstrapData() {
   return data;
 }
 
+function getDuplicatePaymentGroups(contractNumber) {
+  requireOwner_();
+  const target = String(contractNumber || '').trim().toUpperCase();
+  if (!/^C\.\d{4,}$/.test(target)) throw new Error('Indica un número de contrato válido.');
+  const groups = new Map();
+  listObjects_('Pagos')
+    .filter(payment => String(payment.contractNumber || '').trim().toUpperCase() === target)
+    .filter(payment => String(payment.status || '').toUpperCase() === 'COMPLETADO')
+    .forEach(payment => {
+      const key = [payment.contractId, payment.date, roundMoney_(payment.amount), String(payment.method || '').trim().toLowerCase(), String(payment.note || '').trim().toLowerCase()].join('|');
+      const group = groups.get(key) || [];
+      group.push(payment);
+      groups.set(key, group);
+    });
+  return [...groups.values()]
+    .filter(group => group.length > 1)
+    .map(group => ({
+      contractNumber: target,
+      amount: roundMoney_(group[0].amount),
+      date: group[0].date,
+      paymentIds:group.map(payment => payment.id),
+      count:group.length
+    }));
+}
+
 function createContract(payload) {
   const user = requireOwner_();
   const data = payload || {};

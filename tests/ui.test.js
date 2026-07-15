@@ -65,8 +65,10 @@ assert.match(html, /id="fillPaymentBalance"/, 'el formulario permite llenar el s
 assert.match(html, /Saldo tras este pago:/, 'cada movimiento muestra el saldo que dejó en el contrato');
 assert.match(html, /function paymentItems\(/, 'los movimientos recientes se normalizan antes de mostrarse');
 assert.match(html, /const completed = new Map\(\)/, 'los duplicados técnicos de un mismo pago se muestran una sola vez');
+assert.doesNotMatch(html, /roundMoney\(payment\.newBalance\).*String\(payment\.note/s, 'el detector no confunde un saldo posterior distinto con un pago distinto');
 assert.match(html, /data-void-payment-id/, 'un duplicado detectado puede corregirse sin editar el saldo a mano');
 assert.match(html, /callServer\('voidPayment'/, 'la corrección de duplicados usa una operación auditada');
+assert.match(html, /Corregir \/ anular movimiento/, 'el propietario puede corregir un movimiento específico cuando identifica el error');
 assert.match(html, /function prepareLiquidationPayment\(/, 'el panel prepara la liquidación desde un contrato existente');
 assert.match(html, /Liquidación del contrato/, 'la liquidación se identifica correctamente en el recibo y el historial');
 assert.match(html, /data-payment-balance/, 'el pago no puede rebasar el saldo pendiente del contrato seleccionado');

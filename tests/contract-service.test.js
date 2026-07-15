@@ -689,6 +689,20 @@ test('voidPayment corrige un abono duplicado, conserva auditoría y devuelve el 
   assert.strictEqual(state.lockReleases, 1);
 });
 
+test('getDuplicatePaymentGroups reconoce pagos repetidos aunque el saldo registrado cambie', () => {
+  seedContract({ contractNumber:'C.2626', paid:3500, balance:0 });
+  state.sheets.Pagos.push(
+    { id:'pago-a', status:'COMPLETADO', contractId:'contrato-ficticio-001', contractNumber:'C.2626', date:'2026-07-14', amount:1750, method:'Transferencia', note:'Apartado inicial', newBalance:1750 },
+    { id:'pago-b', status:'COMPLETADO', contractId:'contrato-ficticio-001', contractNumber:'C.2626', date:'2026-07-14', amount:1750, method:'Transferencia', note:'Apartado inicial', newBalance:0 }
+  );
+
+  const groups = clone(context.getDuplicatePaymentGroups('C.2626'));
+
+  assert.strictEqual(groups.length, 1);
+  assert.deepStrictEqual(groups[0].paymentIds, ['pago-a', 'pago-b']);
+  assert.strictEqual(groups[0].amount, 1750);
+});
+
 test('cancelContract es idempotente y libera el bloqueo sin repetir efectos', () => {
   seedContract({
     version: 4,
