@@ -53,10 +53,12 @@ assert.match(html, /id="agendaUpcomingGrid"/, 'la agenda separa los próximos ev
 assert.match(html, /id="agendaHistoryGrid"/, 'la agenda conserva un histórico separado');
 assert.match(html, /id="viewerAgendaGrid"/, 'el empleado visualiza sus próximos eventos dentro del panel');
 assert.match(html, /function renderViewerAgendaCard/, 'la agenda de empleado usa tarjetas operativas propias');
-assert.match(html, /function openViewerEvent/, 'el empleado puede abrir detalles del evento sin abrir el contrato');
-assert.match(html, /id="viewerEventDialog"/, 'los detalles del empleado se muestran en un diálogo separado');
-assert.match(html, /SALDO PENDIENTE/, 'el empleado puede saber el saldo pendiente sin ver el módulo de pagos');
-assert.match(html, /LIQUIDADO[\s\S]*Todo pagado/, 'el empleado identifica los eventos ya pagados');
+assert.match(html, /Agenda compartida/, 'el empleado ve el mismo encabezado operativo de agenda');
+assert.match(html, /Debe \$\{money\(event\.pendingBalance\)\}/, 'el empleado puede saber cuánto saldo queda sin ver pagos');
+assert.match(html, /Liquidado · Todo pagado/, 'el empleado identifica los eventos ya pagados');
+assert.doesNotMatch(html, /function openViewerEvent/, 'el empleado no puede abrir detalles del contrato desde la agenda');
+assert.doesNotMatch(html, /data-viewer-event-index/, 'las tarjetas de empleado no son enlaces ni botones');
+assert.doesNotMatch(html, /id="viewerEventDialog"/, 'el empleado no recibe un diálogo de detalles');
 assert.doesNotMatch(html, /id="agendaOnlyLink"/, 'el empleado ya no recibe un enlace externo a Google Calendar');
 assert.match(html, /return historical \? 'HISTORICO' : 'PROXIMO'/, 'la agenda etiqueta por fecha y no por la antigüedad del archivo');
 assert.match(html, /data-agenda-contract-id/, 'cada evento con contrato puede abrir sus detalles desde la agenda');

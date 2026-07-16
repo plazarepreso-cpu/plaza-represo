@@ -321,7 +321,7 @@
           <div class="page-head owner-only"><div><h3>Agenda compartida</h3><p>Primero se muestran los próximos eventos; los ya pasados permanecen separados en el histórico.</p></div><button class="btn btn-primary" type="button" id="syncAgendaButton">↻ Sincronizar Calendar</button></div>
           <section class="card agenda-only-card" id="agendaOnlyPanel" hidden aria-live="polite"></section>
           <section id="viewerAgendaContent" hidden>
-            <div class="page-head"><div><h3>Agenda de equipo</h3><p>Próximos eventos y sus indicaciones operativas.</p></div></div>
+            <div class="page-head"><div><h3>Agenda compartida</h3><p>Primero se muestran los próximos eventos; el equipo ve la misma agenda operativa.</p></div></div>
             <section class="agenda-section" aria-labelledby="viewerAgendaTitle"><div class="agenda-section-head"><div><h4 id="viewerAgendaTitle">Próximos eventos</h4><p>El primero se marca como el siguiente compromiso.</p></div><span class="status CONFIRMADO" id="viewerAgendaCount">0 próximos</span></div><div class="grid agenda-grid" id="viewerAgendaGrid"></div></section>
           </section>
           <div class="owner-only" id="agendaOwnerContent">
@@ -408,11 +408,6 @@
       <div class="dialog-body"><div class="form-grid" id="dialogFields"></div></div>
       <div class="dialog-actions"><div class="cancel-controls owner-only" id="cancelControls"><label class="sr-only" for="cancelReason">Motivo de cancelación</label><input id="cancelReason" placeholder="Motivo de cancelación"><button class="btn btn-danger btn-small" type="button" id="cancelContractButton">Cancelar contrato</button></div><div style="display:flex;gap:8px"><button class="btn btn-ghost" type="button" id="closeContractButton">Cerrar</button><button class="btn btn-primary owner-only" type="submit" id="saveContractButton">Guardar nueva versión</button></div></div>
     </form>
-  </dialog>
-  <dialog id="viewerEventDialog" aria-labelledby="viewerEventTitle">
-    <div class="dialog-head"><h3 id="viewerEventTitle">Detalles del evento</h3><button class="dialog-close" type="button" id="closeViewerEvent" aria-label="Cerrar detalles del evento">×</button></div>
-    <div class="dialog-body"><div class="form-grid" id="viewerEventDetails"></div></div>
-    <div class="dialog-actions"><div></div><button class="btn btn-ghost" type="button" id="closeViewerEventButton">Cerrar</button></div>
   </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
   <div class="loading" id="loading" role="status" aria-live="polite" aria-busy="false"><div><div class="loader" aria-hidden="true"></div><div id="loadingText" style="margin-top:12px;font-weight:700">Cargando…</div></div></div>
@@ -1170,30 +1165,12 @@
       const heading = event.contractNumber ? `${event.contractNumber} — ${agendaName(event)}` : agendaName(event);
       const note = String(event.notes || '').trim() || 'Sin indicaciones adicionales.';
       const isNext = index === 0;
-      const payment = event.paymentStatus === 'LIQUIDADO'
-        ? '<p><span class="status LIQUIDADO">LIQUIDADO</span> <strong>Todo pagado</strong></p>'
+      const paymentText = event.paymentStatus === 'LIQUIDADO'
+        ? 'Liquidado · Todo pagado'
         : event.paymentStatus === 'PENDIENTE'
-          ? `<p><span class="status PENDIENTE">SALDO PENDIENTE</span> <strong>${escapeHtml(money(event.pendingBalance))}</strong></p>`
-          : '';
-      return `<article class="card agenda-card has-details ${isNext ? 'next-event' : ''}" data-viewer-event-index="${index}" tabindex="0" role="button" aria-label="Abrir detalles de ${escapeHtml(heading)}">${isNext ? '<span class="next-event-label">SIGUIENTE EVENTO</span>' : ''}<div class="agenda-date">${escapeHtml(fullEventDate(event))}</div><h4>${escapeHtml(heading)}</h4><p><strong>${escapeHtml(event.startTime)} a ${escapeHtml(event.endTime)}</strong> · ${escapeHtml(event.eventType || 'Evento')}</p>${payment}<p><span class="agenda-note-label">Nota:</span> ${escapeHtml(note)}</p><span class="status PROXIMO">PRÓXIMO</span><p class="agenda-open-hint">Ver detalles del evento</p></article>`;
-    }
-
-    function openViewerEvent(index) {
-      const event = state.data?.viewerAgenda?.[Number(index)];
-      if (!event) return toast('No se encontró el evento.', true);
-      document.getElementById('viewerEventTitle').textContent = event.contractNumber ? `${event.contractNumber} · Detalles del evento` : 'Detalles del evento';
-      const details = [
-        ['Cliente', agendaName(event)],
-        ['Fecha', fullEventDate(event)],
-        ['Horario', `${event.startTime} a ${event.endTime}`],
-        ['Tipo de evento', event.eventType || 'Evento'],
-        ['Nota', String(event.notes || '').trim() || 'Sin indicaciones adicionales.']
-      ];
-      if (event.paymentStatus === 'LIQUIDADO') details.splice(4, 0, ['Pago', 'Liquidado · Todo pagado']);
-      if (event.paymentStatus === 'PENDIENTE') details.splice(4, 0, ['Saldo pendiente', money(event.pendingBalance)]);
-      document.getElementById('viewerEventDetails').innerHTML = details.map(([label, value]) => `<div class="field ${label === 'Nota' ? 'full' : 'half'}"><label>${escapeHtml(label)}</label><div class="warning" style="margin:0">${escapeHtml(value)}</div></div>`).join('');
-      document.getElementById('viewerEventDialog').showModal();
-      document.getElementById('closeViewerEvent').focus();
+          ? `Debe ${money(event.pendingBalance)}`
+          : 'Pago por confirmar';
+      return `<article class="card agenda-card ${isNext ? 'next-event' : ''}">${isNext ? '<span class="next-event-label">SIGUIENTE EVENTO</span>' : ''}<div class="agenda-date">${escapeHtml(fullEventDate(event))}</div><h4>${escapeHtml(heading)}</h4><p><strong>${escapeHtml(event.startTime)} a ${escapeHtml(event.endTime)}</strong> · ${escapeHtml(event.eventType || 'Evento')}</p><p><strong>${escapeHtml(paymentText)}</strong><br><span class="agenda-note-label">Nota:</span> ${escapeHtml(note)}</p><span class="status PROXIMO">PRÓXIMO</span></article>`;
     }
 
     function renderAgenda() {
@@ -1749,17 +1726,6 @@
       event.preventDefault();
       openContract(card.dataset.agendaContractId);
     });
-    document.getElementById('viewerAgendaContent').addEventListener('click', event => {
-      const card = event.target.closest('[data-viewer-event-index]');
-      if (card) openViewerEvent(card.dataset.viewerEventIndex);
-    });
-    document.getElementById('viewerAgendaContent').addEventListener('keydown', event => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      const card = event.target.closest('[data-viewer-event-index]');
-      if (!card) return;
-      event.preventDefault();
-      openViewerEvent(card.dataset.viewerEventIndex);
-    });
     document.getElementById('dialogFields').addEventListener('click', event => {
       const regenerateButton = event.target.closest('[data-regenerate-contract-id]');
       if (regenerateButton) {
@@ -1810,7 +1776,6 @@
       if (button) openContract(button.dataset.paymentEditContractId);
     });
     document.getElementById('dialogClose').onclick = document.getElementById('closeContractButton').onclick = () => document.getElementById('contractDialog').close();
-    document.getElementById('closeViewerEvent').onclick = document.getElementById('closeViewerEventButton').onclick = () => document.getElementById('viewerEventDialog').close();
     document.getElementById('contractDialog').addEventListener('close', () => { state.selectedContract = null; state.formDirty.edit = false; });
     document.getElementById('refreshButton').addEventListener('click', () => loadLatest({ message:'Datos actualizados. Los formularios abiertos se conservaron.', showBusy:true }));
     document.getElementById('syncAgendaButton').addEventListener('click', async () => {
