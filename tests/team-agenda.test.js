@@ -5,7 +5,8 @@ const assert = require('assert');
 const state = {
   properties: {
     TEAM_CALENDAR_ID: 'agenda-equipo-ficticia',
-    TEAM_VIEWER_EMAILS: '[]',
+  TEAM_VIEWER_EMAILS: '[]',
+    TEAM_AGENDA_CACHE_V1_COUNT: '0',
     SPREADSHEET_ID: 'hoja-privada-ficticia',
     CONTRACTS_FOLDER_ID: 'contratos-privados-ficticios',
     PRIVATE_INE_FOLDER_ID: 'ines-privadas-ficticias'
@@ -105,6 +106,7 @@ const context = vm.createContext({
     return new Date(year, month - 1, day, hour, minute || 0, 0, 0);
   },
   todayIso_: () => '2026-07-13',
+  roundMoney_: value => Math.round(Number(value) * 100) / 100,
   listObjects_: sheetName => {
     assert.strictEqual(sheetName, 'Usuarios');
     return [
@@ -200,6 +202,43 @@ test('actualizar un horario conserva el título y los campos genéricos', () => 
   assert.strictEqual(event.guests.has('empleada.ficticia@example.com'), true, 'la invitación se conserva al actualizar');
 });
 
+test('la copia segura conserva sólo lo permitido para el panel del empleado', () => {
+  const cached = snapshot(context.writeTeamAgendaCache_([{
+    contractNumber: 'C.2626',
+    clientName: 'Cliente de agenda',
+    eventDate: '2026-08-21',
+    eventDay: 'Viernes',
+    startTime: '19:00',
+    endTime: '00:00',
+    eventType: 'Cumpleaños',
+    notes: 'Quitar brincolín',
+    phone: '6310000000',
+    address: 'Domicilio reservado',
+    total: 3500,
+    paid: 1750,
+    balance: 1750,
+    ineFileId: 'ine-privada'
+  }]));
+  assert.strictEqual(cached.length, 1);
+  const record = snapshot(context.readTeamAgendaCache_())[0];
+  assert.deepStrictEqual(record, {
+    contractNumber: 'C.2626',
+    clientName: 'Cliente de agenda',
+    eventDate: '2026-08-21',
+    eventDay: 'Viernes',
+    startTime: '19:00',
+    endTime: '00:00',
+    eventType: 'Cumpleaños',
+    notes: 'Quitar brincolín',
+    paymentStatus: 'PENDIENTE',
+    pendingBalance: 1750
+  });
+  const serialized = JSON.stringify(record);
+  ['6310000000', 'Domicilio', '3500', 'ine-privada'].forEach(secret => {
+    assert.strictEqual(serialized.includes(secret), false, `se filtró ${secret}`);
+  });
+});
+
 test('elimina eventos automáticos que ya no existen, sin tocar otros eventos', () => {
   const stale = makeTeamEvent('Evento reservado', new Date(2026, 7, 22, 18), new Date(2026, 7, 22, 23));
   stale.setTag('plaza_represo_team_source', 'origen-ya-eliminado');
@@ -220,24 +259,20 @@ test('elimina eventos automáticos que ya no existen, sin tocar otros eventos', 
   assert.strictEqual(personal.deleted, false, 'las citas manuales nunca se modifican');
 });
 
-test('la migración invita a los horarios genéricos y revoca recursos privados heredados', () => {
+test('la migración autoriza el panel y revoca recursos privados sin depender de Calendar', () => {
   const email = 'empleada.ficticia@example.com';
   Object.values(state.legacyViewers).forEach(viewers => viewers.add(email));
   state.properties.TEAM_VIEWER_EMAILS = '[]';
   const result = snapshot(context.migrateExistingViewerAccessToAgendaOnly_());
 
   assert.deepStrictEqual(result, { migrated: true, viewers: 1 });
-  const agendaEvent = state.teamEvents.find(event =>
-    !event.deleted && event.getTag('plaza_represo_team_source') === 'fuente-privada-001'
-  );
-  assert.strictEqual(agendaEvent.guests.has(email), true, 'la empleada recibe cada horario genérico como invitación');
   Object.entries(state.legacyViewers).forEach(([name, viewers]) => {
     assert.strictEqual(viewers.has(email), false, `se conservó acceso heredado a ${name}`);
   });
   assert.deepStrictEqual(JSON.parse(state.properties.TEAM_VIEWER_EMAILS), [email]);
   assert.strictEqual(state.properties.AGENDA_ONLY_ACCESS_ENABLED, 'true');
   assert.strictEqual(state.properties.AGENDA_ONLY_ACCESS_MIGRATION_V1, 'true');
-  assert.strictEqual(state.sourceCalendarSyncs, 1, 'primero se sincroniza la agenda segura');
+  assert.strictEqual(state.sourceCalendarSyncs, 0, 'no fuerza una sincronización Calendar al autorizar');
   assert.strictEqual(state.auditEntries.at(-1).action, 'MIGRAR_ACCESO_SOLO_AGENDA');
 });
 

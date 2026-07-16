@@ -247,8 +247,9 @@ function syncAgendaFromCalendars_() {
 }
 
 function syncTeamAgendaAfterCalendarChange_() {
-  if (typeof getTeamAgendaCalendar_ !== 'function' || !getTeamAgendaCalendar_()) return null;
-  return syncAgendaFromCalendars_();
+  // La vista interna del equipo se actualiza por caché segura. Evitamos
+  // sincronizar en lote Calendar después de cada cambio y alcanzar su límite.
+  return null;
 }
 
 function syncAgendaNow() {

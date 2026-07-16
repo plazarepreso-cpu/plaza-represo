@@ -7,7 +7,7 @@ function getBootstrapData() {
       user,
       agendaOnly: true,
       viewerAgenda: getViewerAgenda_(),
-      branding: { logoDataUrl: getPlazaRepresoBrandDataUrl_() }
+      branding: { logoDataUrl: '' }
     };
   }
 
@@ -55,47 +55,25 @@ function getBootstrapData() {
     system: getSystemInfo_(),
     automation
   };
+  // Se genera bajo la sesión propietaria. El empleado sólo leerá después la
+  // copia sanitizada y no la base de contratos.
+  try { refreshTeamAgendaCache_(data.agenda, data.history, data.contracts); }
+  catch (error) { data.teamAgendaCacheWarning = String(error.message || error); }
   if (accessMigrationWarning) data.accessMigrationWarning = accessMigrationWarning;
   return data;
 }
 
 function getViewerAgenda_() {
-  const combined = new Map();
-  const keyFor = item => {
-    const number = String(item.contractNumber || '').trim().toUpperCase();
-    const date = String(item.eventDate || '').trim();
-    return number && date ? `${number}|${date}` : `${item.id || item.title || ''}|${date}|${item.startTime || ''}`;
-  };
-  // La prioridad replica el panel propietario: así las notas operativas
-  // actualizadas se ven al equipo sin revelar el expediente completo.
-  listAgendaEvents_().forEach(item => combined.set(keyFor(item), item));
-  listHistoricalContracts_().forEach(item => combined.set(keyFor(item), Object.assign({}, combined.get(keyFor(item)) || {}, item)));
-  listObjects_('Contratos').filter(item => item.status !== 'GENERANDO').forEach(item => combined.set(keyFor(item), Object.assign({}, combined.get(keyFor(item)) || {}, item)));
+  // Esta ruta no abre Sheets, Drive, Calendar oficial ni Historial.
+  return readTeamAgendaCache_();
+}
 
-  return Array.from(combined.values())
-    .filter(item => String(item.status || '').toUpperCase() !== 'CANCELADO')
-    .filter(item => String(item.eventDate || '') >= todayIso_())
-    .sort((a, b) => `${a.eventDate || ''} ${a.startTime || ''}`.localeCompare(`${b.eventDate || ''} ${b.startTime || ''}`))
-    .map(item => {
-      // El equipo sólo necesita saber si falta dinero y cuánto; nunca recibe
-      // el total, pagos realizados, archivos, identificaciones o IDs internos.
-      const rawBalance = item.balance;
-      const hasBalance = rawBalance !== '' && rawBalance !== null && rawBalance !== undefined && Number.isFinite(Number(rawBalance));
-      const balance = hasBalance ? roundMoney_(Number(rawBalance)) : null;
-      const paymentStatus = balance === null ? '' : (balance <= 0 ? 'LIQUIDADO' : 'PENDIENTE');
-      return {
-        contractNumber: String(item.contractNumber || '').trim(),
-        clientName: String(item.clientName || item.title || 'Evento reservado').trim(),
-        eventDate: String(item.eventDate || '').trim(),
-        eventDay: String(item.eventDay || '').trim(),
-        startTime: String(item.startTime || '').trim(),
-        endTime: String(item.endTime || '').trim(),
-        eventType: String(item.eventType || 'Evento').trim(),
-        notes: String(item.notes || '').trim(),
-        paymentStatus,
-        pendingBalance: paymentStatus === 'PENDIENTE' ? balance : null
-      };
-    });
+function refreshTeamAgendaCache() {
+  requireOwner_();
+  const contracts = listObjects_('Contratos').filter(item => item.status !== 'GENERANDO');
+  const history = listHistoricalContracts_();
+  const agenda = listAgendaEvents_();
+  return { events: refreshTeamAgendaCache_(agenda, history, contracts).length };
 }
 
 function getDuplicatePaymentGroups(contractNumber) {
@@ -230,6 +208,9 @@ function createContract(payload) {
     }
     contract.updatedAt = nowIso_();
     contract = updateObject_('Contratos', 'id', contractId, contract);
+    if (typeof upsertTeamAgendaCacheRecord_ === 'function') {
+      try { upsertTeamAgendaCacheRecord_(contract); } catch (ignored) {}
+    }
     if (typeof syncTeamAgendaAfterCalendarChange_ === 'function') {
       try { syncTeamAgendaAfterCalendarChange_(); }
       catch (teamAgendaError) {
@@ -319,6 +300,9 @@ function updateContract(payload) {
     catch (repairError) {
       try { audit_('ERROR_REPARAR_RECIBO_INICIAL', 'Contrato', existing.id, { message: repairError.message }); }
       catch (ignored) {}
+    }
+    if (typeof upsertTeamAgendaCacheRecord_ === 'function') {
+      try { upsertTeamAgendaCacheRecord_(saved); } catch (ignored) {}
     }
     if (typeof syncTeamAgendaAfterCalendarChange_ === 'function') {
       try { syncTeamAgendaAfterCalendarChange_(); }
@@ -494,6 +478,9 @@ function addPayment(payload) {
       status: 'COMPLETADO',
       errorMessage: ''
     });
+    if (typeof upsertTeamAgendaCacheRecord_ === 'function') {
+      try { upsertTeamAgendaCacheRecord_(saved); } catch (ignored) {}
+    }
     try { audit_('REGISTRAR_PAGO', 'Pago', payment.id, { contractId: contract.id, amount: payment.amount }); }
     catch (ignored) {}
     return { contract: saved, payment };
@@ -581,6 +568,9 @@ function voidPayment(payload) {
         status: correctedBalance === 0 ? 'PAGADO' : 'CONFIRMADO',
         updatedAt: now
       }));
+    }
+    if (typeof upsertTeamAgendaCacheRecord_ === 'function') {
+      try { upsertTeamAgendaCacheRecord_(saved); } catch (ignored) {}
     }
     try { audit_('ANULAR_PAGO_DUPLICADO', 'Pago', payment.id, { contractNumber: payment.contractNumber, amount, reason }); }
     catch (ignored) {}
@@ -693,6 +683,9 @@ function addHistoricalPayment(payload) {
         amount: payment.amount
       });
     } catch (ignored) {}
+    if (typeof upsertTeamAgendaCacheRecord_ === 'function') {
+      try { upsertTeamAgendaCacheRecord_(saved); } catch (ignored) {}
+    }
     return {
       contract: saved,
       payment,
@@ -770,6 +763,9 @@ function cancelContract(payload) {
       updatedBy: user.email
     });
     const saved = updateObject_('Contratos', 'id', contract.id, updated);
+    if (typeof upsertTeamAgendaCacheRecord_ === 'function') {
+      try { upsertTeamAgendaCacheRecord_(saved); } catch (ignored) {}
+    }
     let calendarPending = false;
     try {
       markCalendarEventCancelled_(saved);

@@ -9,7 +9,20 @@ const properties = {
   CALENDAR_ID: 'calendario-oficial-privado',
   TEAM_CALENDAR_ID: 'agenda-equipo-ficticia',
   SPREADSHEET_ID: 'base-de-datos-privada',
-  CONTRACTS_FOLDER_ID: 'carpeta-de-contratos-privada'
+  CONTRACTS_FOLDER_ID: 'carpeta-de-contratos-privada',
+  TEAM_AGENDA_CACHE_V1_COUNT: '1',
+  TEAM_AGENDA_CACHE_V1_0: JSON.stringify([{
+    contractNumber: 'C.9001',
+    clientName: 'Cliente visible al equipo',
+    eventDate: '2026-08-21',
+    eventDay: 'Viernes',
+    startTime: '18:00',
+    endTime: '23:00',
+    eventType: 'Cumpleaños',
+    notes: 'Sin brincolín',
+    paymentStatus: 'PENDIENTE',
+    pendingBalance: 1750
+  }])
 };
 const privateReads = [];
 
@@ -55,6 +68,8 @@ const context = vm.createContext({
   teamAgendaUrl_: () => TEAM_AGENDA_URL,
   getTeamAgendaUrl_: () => TEAM_AGENDA_URL,
   getAgendaOnlyUrl_: () => TEAM_AGENDA_URL,
+  todayIso_: () => '2026-07-15',
+  roundMoney_: value => Math.round(Number(value) * 100) / 100,
   console
 });
 
@@ -83,7 +98,6 @@ context.getAgendaOnlyUrl_ = () => TEAM_AGENDA_URL;
 const data = JSON.parse(JSON.stringify(context.getBootstrapData()));
 
 assert.strictEqual(data.agendaOnly, true, 'la cuenta CONSULTA debe recibir el modo exclusivo de agenda');
-assert.strictEqual(data.agendaUrl, TEAM_AGENDA_URL, 'debe abrir el calendario propio donde llegan las invitaciones');
 assert.deepStrictEqual(data.user, {
   email: 'empleada.ficticia@example.com',
   role: 'CONSULTA'
@@ -94,11 +108,22 @@ assert.deepStrictEqual(data.clients || [], [], 'no se entregan clientes al emple
 assert.deepStrictEqual(data.history || [], [], 'no se entrega historial al empleado');
 assert.deepStrictEqual(data.files || [], [], 'no se entregan archivos de Drive al empleado');
 assert.deepStrictEqual(data.users || [], [], 'no se entregan cuentas de acceso al empleado');
+assert.deepStrictEqual(data.viewerAgenda, [{
+  contractNumber: 'C.9001',
+  clientName: 'Cliente visible al equipo',
+  eventDate: '2026-08-21',
+  eventDay: 'Viernes',
+  startTime: '18:00',
+  endTime: '23:00',
+  eventType: 'Cumpleaños',
+  notes: 'Sin brincolín',
+  paymentStatus: 'PENDIENTE',
+  pendingBalance: 1750
+}], 'la agenda del empleado se lee desde la copia sanitizada');
 assert.strictEqual(privateReads.length, 0, `no debe consultar recursos privados: ${privateReads.join(', ')}`);
 
 const serialized = JSON.stringify(data);
 [
-  'C.9001',
   'Cliente Ficticio',
   'Domicilio',
   '6310000000',

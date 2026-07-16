@@ -2,6 +2,89 @@ const TEAM_CALENDAR_PROPERTY_ = 'TEAM_CALENDAR_ID';
 const TEAM_AGENDA_TAG_KEY_ = 'plaza_represo_team_source';
 const TEAM_AGENDA_TITLE_ = 'Agenda de equipo — Plaza Represo';
 const AGENDA_ONLY_MIGRATION_PROPERTY_ = 'AGENDA_ONLY_ACCESS_MIGRATION_V1';
+const TEAM_AGENDA_CACHE_PREFIX_ = 'TEAM_AGENDA_CACHE_V1_';
+const TEAM_AGENDA_CACHE_COUNT_PROPERTY_ = 'TEAM_AGENDA_CACHE_V1_COUNT';
+const TEAM_AGENDA_CACHE_CHUNK_SIZE_ = 7500;
+
+/**
+ * Datos expresamente aprobados para el equipo. Esta caché no requiere que una
+ * cuenta de consulta abra la base privada, Drive, Calendar oficial ni INE.
+ */
+function safeTeamAgendaRecord_(record) {
+  if (!record || String(record.status || '').toUpperCase() === 'CANCELADO') return null;
+  const eventDate = String(record.eventDate || '').trim();
+  if (!eventDate || eventDate < todayIso_()) return null;
+  const rawBalance = record.balance !== '' && record.balance !== null && record.balance !== undefined
+    ? record.balance
+    : (record.paymentStatus === 'PENDIENTE' ? record.pendingBalance : (record.paymentStatus === 'LIQUIDADO' ? 0 : ''));
+  const hasBalance = rawBalance !== '' && rawBalance !== null && rawBalance !== undefined && Number.isFinite(Number(rawBalance));
+  const balance = hasBalance ? roundMoney_(Number(rawBalance)) : null;
+  const paymentStatus = balance === null ? '' : (balance <= 0 ? 'LIQUIDADO' : 'PENDIENTE');
+  return {
+    contractNumber: String(record.contractNumber || '').trim(),
+    clientName: String(record.clientName || record.title || 'Evento reservado').trim(),
+    eventDate,
+    eventDay: String(record.eventDay || '').trim(),
+    startTime: String(record.startTime || '').trim(),
+    endTime: String(record.endTime || '').trim(),
+    eventType: String(record.eventType || 'Evento').trim(),
+    notes: String(record.notes || '').trim(),
+    paymentStatus,
+    pendingBalance: paymentStatus === 'PENDIENTE' ? balance : null
+  };
+}
+
+function teamAgendaCacheKey_(record) {
+  return [record.contractNumber, record.eventDate, record.startTime, record.clientName]
+    .map(value => String(value || '').trim().toUpperCase()).join('|');
+}
+
+function writeTeamAgendaCache_(records) {
+  const safe = (records || []).map(safeTeamAgendaRecord_).filter(Boolean)
+    .sort((a, b) => `${a.eventDate} ${a.startTime}`.localeCompare(`${b.eventDate} ${b.startTime}`));
+  const serialized = JSON.stringify(safe);
+  const chunks = [];
+  for (let offset = 0; offset < serialized.length; offset += TEAM_AGENDA_CACHE_CHUNK_SIZE_) {
+    chunks.push(serialized.slice(offset, offset + TEAM_AGENDA_CACHE_CHUNK_SIZE_));
+  }
+  if (!chunks.length) chunks.push('[]');
+  const props = PropertiesService.getScriptProperties();
+  const previousCount = Math.max(0, Number(props.getProperty(TEAM_AGENDA_CACHE_COUNT_PROPERTY_) || 0));
+  chunks.forEach((chunk, index) => props.setProperty(`${TEAM_AGENDA_CACHE_PREFIX_}${index}`, chunk));
+  for (let index = chunks.length; index < previousCount; index += 1) props.setProperty(`${TEAM_AGENDA_CACHE_PREFIX_}${index}`, '');
+  props.setProperty(TEAM_AGENDA_CACHE_COUNT_PROPERTY_, String(chunks.length));
+  return safe;
+}
+
+function readTeamAgendaCache_() {
+  const props = PropertiesService.getScriptProperties();
+  const count = Math.min(70, Math.max(0, Number(props.getProperty(TEAM_AGENDA_CACHE_COUNT_PROPERTY_) || 0)));
+  if (!count) return [];
+  const serialized = Array.from({ length:count }, (_, index) => String(props.getProperty(`${TEAM_AGENDA_CACHE_PREFIX_}${index}`) || '')).join('');
+  try {
+    const records = JSON.parse(serialized);
+    return Array.isArray(records) ? records.map(safeTeamAgendaRecord_).filter(Boolean) : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function refreshTeamAgendaCache_(agenda, history, contracts) {
+  const combined = new Map();
+  [agenda || [], history || [], contracts || []].forEach(group => group.forEach(record => {
+    const safe = safeTeamAgendaRecord_(record);
+    if (safe) combined.set(teamAgendaCacheKey_(safe), safe);
+  }));
+  return writeTeamAgendaCache_(Array.from(combined.values()));
+}
+
+function upsertTeamAgendaCacheRecord_(record) {
+  const safe = safeTeamAgendaRecord_(record);
+  const key = teamAgendaCacheKey_(safe || record || {});
+  const next = readTeamAgendaCache_().filter(item => teamAgendaCacheKey_(item) !== key);
+  if (safe) next.push(safe);
+  return writeTeamAgendaCache_(next);
+}
 
 /**
  * Este calendario es distinto al calendario oficial y permanece privado. Sus
@@ -220,18 +303,17 @@ function removeLegacyPrivateDataAccess_(email) {
 
 function grantAgendaOnlyAccess_(email) {
   const previousEmails = listAgendaOnlyViewerEmails_();
+  const emails = setAgendaOnlyViewerEmails_(previousEmails.concat([email]));
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty(AGENDA_ONLY_ACCESS_ENABLED_PROPERTY_, 'true');
+  // Calendar puede imponer un límite temporal. Eso no debe impedir que la
+  // cuenta autorizada abra el panel seguro.
   try {
-    getOrCreateTeamAgendaCalendar_();
     removeLegacyPrivateDataAccess_(email);
-    const emails = setAgendaOnlyViewerEmails_(previousEmails.concat([email]));
-    syncTeamAgendaFromRecords_(listAgendaEvents_(), emails);
-    PropertiesService.getScriptProperties().setProperty(AGENDA_ONLY_ACCESS_ENABLED_PROPERTY_, 'true');
-    return { emails };
   } catch (error) {
-    try { setAgendaOnlyViewerEmails_(previousEmails); } catch (ignored) {}
-    try { removeAgendaOnlyGuestFromTeamEvents_(email); } catch (ignored) {}
-    throw new Error(`No se pudo compartir la Agenda de equipo con ${email}: ${error.message || error}`);
+    props.setProperty('TEAM_ACCESS_CLEANUP_WARNING', String(error.message || error).slice(0, 500));
   }
+  return { emails };
 }
 
 function revokeAgendaOnlyAccess_(email) {
@@ -250,33 +332,27 @@ function revokeAgendaOnlyAccess_(email) {
  */
 function migrateExistingViewerAccessToAgendaOnly_() {
   const props = PropertiesService.getScriptProperties();
-  if (String(props.getProperty(AGENDA_ONLY_MIGRATION_PROPERTY_) || '') === 'true') {
-    return { migrated: false, viewers: listAgendaOnlyViewerEmails_().length };
-  }
-
   const viewers = listObjects_('Usuarios')
     .filter(user => String(user.role || APP_CONFIG.ROLE_VIEWER) === APP_CONFIG.ROLE_VIEWER)
     .filter(user => isActiveUserValue_(user.active))
     .map(user => String(user.email || '').trim().toLowerCase())
     .filter(Boolean);
-  getOrCreateTeamAgendaCalendar_();
-
-  // Primero se prepara la agenda segura; no se revoca nada si no se puede
-  // garantizar que el equipo tenga a dónde consultar sus horarios.
-  syncAgendaFromCalendars_();
-  syncTeamAgendaFromRecords_(listAgendaEvents_(), viewers);
-  try {
-    viewers.forEach(email => removeLegacyPrivateDataAccess_(email));
-  } catch (error) {
-    viewers.forEach(email => {
-      try { removeAgendaOnlyGuestFromTeamEvents_(email); } catch (ignored) {}
-    });
-    throw new Error(`No se pudo terminar la migración de permisos: ${error.message || error}`);
+  if (String(props.getProperty(AGENDA_ONLY_MIGRATION_PROPERTY_) || '') === 'true') {
+    // Repara una alta que quedó a medias por un límite temporal de Calendar.
+    // El panel seguro se guía por las cuentas activas, no por invitaciones.
+    setAgendaOnlyViewerEmails_(viewers);
+    props.setProperty(AGENDA_ONLY_ACCESS_ENABLED_PROPERTY_, 'true');
+    return { migrated: false, viewers: viewers.length };
   }
-
   setAgendaOnlyViewerEmails_(viewers);
   props.setProperty(AGENDA_ONLY_ACCESS_ENABLED_PROPERTY_, 'true');
   props.setProperty(AGENDA_ONLY_MIGRATION_PROPERTY_, 'true');
+  const cleanupErrors = [];
+  viewers.forEach(email => {
+    try { removeLegacyPrivateDataAccess_(email); }
+    catch (error) { cleanupErrors.push(`${email}: ${String(error.message || error)}`); }
+  });
+  if (cleanupErrors.length) props.setProperty('TEAM_ACCESS_CLEANUP_WARNING', cleanupErrors.join(' | ').slice(0, 500));
   try { audit_('MIGRAR_ACCESO_SOLO_AGENDA', 'Sistema', 'equipo', { viewers: viewers.length }); }
   catch (ignored) {}
   return { migrated: true, viewers: viewers.length };
