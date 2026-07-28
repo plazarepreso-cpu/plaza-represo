@@ -64,6 +64,33 @@ function grantOwnerResourceAccess_(email) {
     }
   });
   if (failures.length) throw new Error(`No se pudo otorgar acceso completo: ${failures.join(' | ')}`);
+  return grantIndexedContractFilesAccess_(email);
+}
+
+/**
+ * Algunos contratos anteriores fueron creados antes de que existiera la
+ * carpeta administrada. Sus PDFs pueden vivir fuera de ella, por lo que
+ * compartir únicamente la carpeta no garantiza que otro propietario pueda
+ * abrirlos. Se comparten de forma explícita, sin mover ni cambiar el archivo.
+ */
+function grantIndexedContractFilesAccess_(email) {
+  if (typeof listContractFileLinks_ !== 'function') return { shared:0, failures:[] };
+  const ids = Array.from(new Set(listContractFileLinks_()
+    .map(item => String(item.contractFileId || '').trim())
+    .filter(Boolean)));
+  const failures = [];
+  let shared = 0;
+  ids.forEach(id => {
+    try {
+      DriveApp.getFileById(id).addEditor(email);
+      shared += 1;
+    } catch (error) {
+      // Un enlace anterior roto no debe impedir el acceso al sistema ni a los
+      // demás documentos. Se conserva para diagnóstico en la auditoría.
+      failures.push({ id, message:String(error.message || error) });
+    }
+  });
+  return { shared, failures };
 }
 
 /**
@@ -74,17 +101,17 @@ function grantOwnerResourceAccess_(email) {
 function grantOwnerAccess(payload) {
   const owner = requireOwner_();
   const email = normalizeAccessEmail_(payload && payload.email);
-  if (listOwnerEmails_().includes(email)) return listAccessUsers_();
 
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
     ensureSchema_();
+    const alreadyOwner = listOwnerEmails_().includes(email);
     const existing = listObjects_('Usuarios').find(user =>
       String(user.email || '').trim().toLowerCase() === email
     );
-    grantOwnerResourceAccess_(email);
-    setOwnerEmails_(listOwnerEmails_().concat([email]));
+    const resourceAccess = grantOwnerResourceAccess_(email) || { shared:0, failures:[] };
+    if (!alreadyOwner) setOwnerEmails_(listOwnerEmails_().concat([email]));
     // Una cuenta que asciende deja de ser invitada de la agenda limitada.
     try { removeAgendaOnlyGuestFromTeamEvents_(email); } catch (ignored) {}
     setAgendaOnlyViewerEmails_(listAgendaOnlyViewerEmails_().filter(value => value !== email));
@@ -97,7 +124,13 @@ function grantOwnerAccess(payload) {
     } else {
       appendObject_('Usuarios', { email, role: APP_CONFIG.ROLE_OWNER, active: true });
     }
-    try { audit_('CONCEDER_PROPIETARIO', 'Usuario', email, { grantedBy: owner.email }); }
+    try {
+      audit_(alreadyOwner ? 'REPARAR_ACCESO_PROPIETARIO' : 'CONCEDER_PROPIETARIO', 'Usuario', email, {
+        grantedBy: owner.email,
+        linkedFilesShared: resourceAccess.shared,
+        linkedFileFailures: resourceAccess.failures
+      });
+    }
     catch (ignored) {}
     return listAccessUsers_();
   } finally {
