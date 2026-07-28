@@ -38,15 +38,17 @@ function revokeDataAccess_(email) {
   return revokeAgendaOnlyAccess_(email);
 }
 
-/** Comparte los recursos privados indispensables con una cuenta propietaria. */
+/**
+ * Comparte los recursos privados gestionados por Drive con una cuenta
+ * propietaria. Los calendarios se comparten desde Google Calendar: CalendarApp
+ * no ofrece una API uniforme de ACL en todos los despliegues de Apps Script.
+ */
 function grantOwnerResourceAccess_(email) {
   const properties = PropertiesService.getScriptProperties();
   const resources = [
     ['la base de datos', properties.getProperty('SPREADSHEET_ID'), id => SpreadsheetApp.openById(id)],
     ['la carpeta de contratos', properties.getProperty('CONTRACTS_FOLDER_ID'), id => DriveApp.getFolderById(id)],
-    ['el resguardo privado de identificaciones', properties.getProperty('PRIVATE_INE_FOLDER_ID'), id => DriveApp.getFolderById(id)],
-    ['el calendario oficial', properties.getProperty('CALENDAR_ID'), id => CalendarApp.getCalendarById(id)],
-    ['el calendario interno de equipo', properties.getProperty('TEAM_CALENDAR_ID'), id => CalendarApp.getCalendarById(id)]
+    ['el resguardo privado de identificaciones', properties.getProperty('PRIVATE_INE_FOLDER_ID'), id => DriveApp.getFolderById(id)]
   ];
   const failures = [];
   resources.forEach(item => {
@@ -66,8 +68,8 @@ function grantOwnerResourceAccess_(email) {
 
 /**
  * Concede el rol propietario sin reemplazar al propietario original. Incluye
- * acceso de edición a la base, documentos, INE y calendarios necesarios para
- * que la aplicación (executeAs USER_ACCESSING) funcione en esa cuenta.
+ * acceso de edición a la base, documentos e INE. La instalación completa el
+ * acceso a los calendarios desde la interfaz oficial de Google Calendar.
  */
 function grantOwnerAccess(payload) {
   const owner = requireOwner_();
