@@ -85,11 +85,19 @@ function runDailyAutomation_() {
         }
 
         const calendarEventId = updateCalendarEvent_(contract);
-        if (calendarEventId && String(calendarEventId) !== String(contract.calendarEventId || '')) {
-          updateObject_('Contratos', 'id', contract.id, { calendarEventId });
-        }
+        updateObject_('Contratos', 'id', contract.id, {
+          calendarEventId,
+          calendarSyncStatus: 'SINCRONIZADO',
+          calendarError: ''
+        });
         summary.reconciled += 1;
       } catch (error) {
+        if (contract.status !== 'CANCELADO') {
+          updateObject_('Contratos', 'id', contract.id, {
+            calendarSyncStatus: 'PENDIENTE',
+            calendarError: String(error.message || error).slice(0, 500)
+          });
+        }
         summary.errors += 1;
       }
     });

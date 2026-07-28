@@ -17,6 +17,7 @@ const SHEET_HEADERS = Object.freeze({
     'elaborationDate', 'eventDate', 'eventDay', 'startTime', 'endTime', 'eventType', 'notes',
     'clientId', 'ineFileId', 'clientName', 'address', 'phone', 'total', 'initialDeposit', 'paid',
     'balance', 'overrideReason', 'folderId', 'currentPdfFileId', 'calendarEventId',
+    'calendarSyncStatus', 'calendarError',
     'createdBy', 'updatedBy', 'cancelReason'
   ],
   Clientes: ['id', 'name', 'address', 'phone', 'ineFileId', 'createdAt', 'updatedAt'],

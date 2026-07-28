@@ -811,6 +811,13 @@
       if (method === 'syncAgendaNow') {
         return { synced:db.contracts.length, calendars:1, errors:[] };
       }
+      if (method === 'repairContractCalendar') {
+        const contract = db.contracts.find(item => String(item.id) === String(payload.id));
+        if (!contract) throw new Error('No se encontró el contrato.');
+        Object.assign(contract, { calendarEventId:`evento-${contract.id}`, calendarSyncStatus:'SINCRONIZADO', calendarError:'' });
+        saveMock(db);
+        return contract;
+      }
       if (method === 'syncExistingContractFiles') {
         return { linked:0, missing:db.contracts.length, errors:0, results:[] };
       }
@@ -1241,10 +1248,18 @@
         const regenerateAction = managed && state.data.user.role === 'PROPIETARIO' && contract.status !== 'CANCELADO'
           ? `<button class="btn btn-ghost btn-small" type="button" data-regenerate-contract-id="${escapeHtml(contract.id)}">Regenerar PDF</button>`
           : '';
+        const calendarPending = managed && contract.status !== 'CANCELADO'
+          && (String(contract.calendarSyncStatus || '').toUpperCase() === 'PENDIENTE' || !contract.calendarEventId);
+        const calendarAction = calendarPending && state.data.user.role === 'PROPIETARIO'
+          ? `<button class="btn btn-ghost btn-small" type="button" data-repair-calendar-id="${escapeHtml(contract.id)}">Reintentar Calendar</button>`
+          : '';
+        const calendarLabel = calendarPending
+          ? '<br><small style="color:var(--red);font-weight:700">Calendar pendiente</small>'
+          : (managed ? '<br><small style="color:var(--green);font-weight:700">Calendar sincronizado</small>' : '');
         const detailLabel = managed ? 'Editar contrato' : 'Ver datos';
-        const action = `<button class="btn btn-ghost btn-small" type="button" data-contract-id="${escapeHtml(contract.id)}">${detailLabel}</button>${regenerateAction}${partialPaymentAction}${paymentAction}${pdfLink}${missingFile}`;
+        const action = `<button class="btn btn-ghost btn-small" type="button" data-contract-id="${escapeHtml(contract.id)}">${detailLabel}</button>${calendarAction}${regenerateAction}${partialPaymentAction}${paymentAction}${pdfLink}${missingFile}`;
         const amount = value => value === '' || value === null || value === undefined ? '—' : money(value);
-        return `<tr><td><strong>${escapeHtml(contract.contractNumber)}</strong><br><small>${escapeHtml(sourceLabel)}</small></td><td>${escapeHtml(contract.eventDate || '—')}<br><small>${escapeHtml(contract.startTime || '—')}–${escapeHtml(contract.endTime || '—')}</small></td><td>${escapeHtml(contract.clientName || 'Sin nombre registrado')}</td><td>${amount(contract.total)}</td><td>${amount(contract.paid)}</td><td><strong>${amount(contract.balance)}</strong></td><td><span class="status ${statusClass(status)}">${escapeHtml(status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap">${action}</div></td></tr>`;
+        return `<tr><td><strong>${escapeHtml(contract.contractNumber)}</strong><br><small>${escapeHtml(sourceLabel)}</small>${calendarLabel}</td><td>${escapeHtml(contract.eventDate || '—')}<br><small>${escapeHtml(contract.startTime || '—')}–${escapeHtml(contract.endTime || '—')}</small></td><td>${escapeHtml(contract.clientName || 'Sin nombre registrado')}</td><td>${amount(contract.total)}</td><td>${amount(contract.paid)}</td><td><strong>${amount(contract.balance)}</strong></td><td><span class="status ${statusClass(status)}">${escapeHtml(status)}</span></td><td><div style="display:flex;gap:6px;flex-wrap:wrap">${action}</div></td></tr>`;
       }).join('') || '<tr><td colspan="8" class="empty">No se encontraron contratos.</td></tr>';
     }
 
@@ -1648,6 +1663,13 @@
       const regenerateButton = editable
         ? `<div style="margin-top:10px"><button class="btn btn-ghost btn-small" type="button" data-regenerate-contract-id="${escapeHtml(contract.id)}">Regenerar PDF con diseño actual</button></div>`
         : '';
+      const calendarPending = managed && contract.status !== 'CANCELADO'
+        && (String(contract.calendarSyncStatus || '').toUpperCase() === 'PENDIENTE' || !contract.calendarEventId);
+      const calendarControl = state.data.user.role === 'PROPIETARIO' && managed
+        ? (calendarPending
+          ? `<div style="margin-top:10px;color:var(--red)"><strong>Google Calendar pendiente.</strong> ${escapeHtml(contract.calendarError || 'El evento todavía no se ha confirmado en Google.')}<br><button style="margin-top:8px" class="btn btn-ghost btn-small" type="button" data-repair-calendar-id="${escapeHtml(contract.id)}">Reintentar Calendar</button></div>`
+          : '<div style="margin-top:10px;color:var(--green);font-weight:700">Google Calendar sincronizado.</div>')
+        : '';
       const versionText = managed ? `Versión actual: <strong>${escapeHtml(contract.version || 1)}</strong>` : (noteOnlyEditable ? 'Registro anterior: puedes actualizar únicamente la nota operativa.' : 'Registro anterior de solo lectura');
       const fileStatus = pdfLink ? `<div style="margin-top:10px">${pdfLink}</div>` : '<div style="margin-top:10px;color:var(--muted)">Archivo original todavía no vinculado.</div>';
       document.getElementById('dialogFields').innerHTML = `<input type="hidden" name="id" value="${escapeHtml(contract.id)}"><input type="hidden" name="expectedVersion" value="${escapeHtml(contract.version || '')}">` + fields.map(([name, label, value, type], index) => {
@@ -1657,7 +1679,7 @@
         const required = editable && name !== 'overrideReason' ? 'required' : '';
         const canEditField = editable || (noteOnlyEditable && name === 'notes');
         return `<div class="field ${fieldClass}"><label for="${inputId}">${escapeHtml(label)}</label><input id="${inputId}" name="${name}" type="${type}" value="${escapeHtml(value ?? '')}"${step} ${canEditField ? required : 'disabled'}></div>`;
-      }).join('') + `<div class="field full warning">Pagado: <strong>${money(contract.paid)}</strong> · Saldo: <strong>${money(contract.balance)}</strong> · ${versionText}${regenerateButton}${paymentButton ? `<div style="margin-top:10px">${paymentButton}</div>` : ''}${fileStatus}${ineButton ? `<div style="margin-top:10px">${ineButton}</div>` : ''}</div>`;
+      }).join('') + `<div class="field full warning">Pagado: <strong>${money(contract.paid)}</strong> · Saldo: <strong>${money(contract.balance)}</strong> · ${versionText}${calendarControl}${regenerateButton}${paymentButton ? `<div style="margin-top:10px">${paymentButton}</div>` : ''}${fileStatus}${ineButton ? `<div style="margin-top:10px">${ineButton}</div>` : ''}</div>`;
       document.getElementById('cancelControls').style.display = editable ? '' : 'none';
       document.getElementById('cancelReason').value = '';
       const saveButton = document.getElementById('saveContractButton');
@@ -1688,6 +1710,23 @@
         await loadLatest({ message:`PDF ${contract.contractNumber} regenerado con el diseño actual.` });
       } catch (error) {
         toast(error.message, true);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function repairContractCalendarFromPanel(id) {
+      const contract = contractItems().find(item => String(item.id) === String(id));
+      if (!contract || contract.source !== 'CONTRATO') return toast('No se encontró el contrato administrado.', true);
+      showLoading(`Sincronizando ${contract.contractNumber} con Google Calendar…`);
+      try {
+        await callServer('repairContractCalendar', { id:contract.id });
+        if (state.selectedContract && String(state.selectedContract.id) === String(id)) {
+          document.getElementById('contractDialog').close();
+        }
+        await loadLatest({ message:`${contract.contractNumber} ya está confirmado en Google Calendar.` });
+      } catch (error) {
+        toast(error.message || 'Google Calendar no aceptó el evento.', true);
       } finally {
         hideLoading();
       }
@@ -1737,6 +1776,11 @@
       openContract(card.dataset.agendaContractId);
     });
     document.getElementById('dialogFields').addEventListener('click', event => {
+      const calendarButton = event.target.closest('[data-repair-calendar-id]');
+      if (calendarButton) {
+        repairContractCalendarFromPanel(calendarButton.dataset.repairCalendarId);
+        return;
+      }
       const regenerateButton = event.target.closest('[data-regenerate-contract-id]');
       if (regenerateButton) {
         regenerateContractPdfFromPanel(regenerateButton.dataset.regenerateContractId);
@@ -1758,6 +1802,11 @@
       else openPrivateIne({ clientId:button.dataset.ineClientId });
     });
     document.getElementById('contractsBody').addEventListener('click', event => {
+      const calendarButton = event.target.closest('[data-repair-calendar-id]');
+      if (calendarButton) {
+        repairContractCalendarFromPanel(calendarButton.dataset.repairCalendarId);
+        return;
+      }
       const regenerateButton = event.target.closest('[data-regenerate-contract-id]');
       if (regenerateButton) {
         regenerateContractPdfFromPanel(regenerateButton.dataset.regenerateContractId);
@@ -1943,10 +1992,13 @@
       payload.ineDataUrl = state.ineDataUrl;
       showLoading('Generando contrato, carpeta y agenda…');
       try {
-        await callServer('createContract', payload);
+        const created = await callServer('createContract', payload);
         clearPendingRequestId('contract');
         event.target.reset();
-        await loadLatest({ message:'Contrato generado correctamente.' });
+        const calendarPending = String(created?.calendarSyncStatus || '').toUpperCase() === 'PENDIENTE' || !created?.calendarEventId;
+        await loadLatest({ message:calendarPending
+          ? 'Contrato y PDF guardados. Google Calendar quedó pendiente; usa “Reintentar Calendar” en Contratos.'
+          : 'Contrato, PDF y evento de Google Calendar generados correctamente.' });
         switchView('contracts');
       } catch (error) {
         toast(error.message, true);

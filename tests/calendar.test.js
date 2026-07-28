@@ -133,4 +133,31 @@ context.syncAgendaNow();
 assert.strictEqual(ownerChecks, 1, 'la sincronización manual exige cuenta propietaria');
 assert.strictEqual(context.listAgendaEvents_().length, 3);
 
+const reusedCalls = [];
+const existingManagedEvent = {
+  getId:() => 'evento-2627-existente',
+  getTitle:() => 'C.2627 | Cliente anterior | Fiesta',
+  getDescription:() => 'Contrato: C.2627',
+  getStartTime:() => new Date(2026, 7, 15, 18, 30),
+  setTitle(value) { reusedCalls.push(['title', value]); return this; },
+  setTime(start, end) { reusedCalls.push(['time', start, end]); return this; },
+  setDescription(value) { reusedCalls.push(['description', value]); return this; },
+  setLocation(value) { reusedCalls.push(['location', value]); return this; },
+  removeAllReminders() { reusedCalls.push(['reminders']); return this; },
+  addPopupReminder(minutes) { reusedCalls.push(['popup', minutes]); return this; }
+};
+let createCalls = 0;
+context.getCalendar_ = () => ({
+  getEvents:() => [existingManagedEvent],
+  createEvent:() => { createCalls += 1; throw new Error('No debe duplicar el evento.'); }
+});
+const reusedId = context.createCalendarEvent_({
+  contractNumber:'C.2627', clientName:'Yesenia Prueba', phone:'6310000000', eventType:'Fiesta', notes:'',
+  eventDate:'2026-08-15', startTime:'18:30', endTime:'23:30', total:4500, paid:2000, balance:2500,
+  currentPdfFileId:'pdf-2627'
+});
+assert.strictEqual(reusedId, 'evento-2627-existente');
+assert.strictEqual(createCalls, 0, 'un reintento reutiliza el evento existente y no crea duplicados');
+assert.ok(reusedCalls.some(call => call[0] === 'title'), 'el evento existente se actualiza con los datos vigentes');
+
 console.log('Agenda verificada: Calendar existente, contratos nuevos, filtros y sincronización compartida.');

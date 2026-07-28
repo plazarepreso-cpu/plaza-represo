@@ -616,6 +616,25 @@ test('updateContract rechaza expectedVersion obsoleta y siempre libera el bloque
   assert.strictEqual(state.clientUpserts, 0);
 });
 
+test('repairContractCalendar repara un evento pendiente y guarda el identificador', () => {
+  seedContract({
+    status:'CONFIRMADO',
+    calendarEventId:'',
+    calendarSyncStatus:'PENDIENTE',
+    calendarError:'Límite temporal de Google Calendar'
+  });
+
+  const saved = clone(context.repairContractCalendar({ id:'contrato-ficticio-001' }));
+
+  assert.strictEqual(saved.calendarEventId, 'evento-calendario-contrato-ficticio-001');
+  assert.strictEqual(saved.calendarSyncStatus, 'SINCRONIZADO');
+  assert.strictEqual(saved.calendarError, '');
+  assert.strictEqual(state.calendarUpdates.length, 1);
+  assert.strictEqual(state.audits[0].action, 'REPARAR_CALENDARIO');
+  assert.deepStrictEqual(state.lockWaits, [30000]);
+  assert.strictEqual(state.lockReleases, 1);
+});
+
 test('regenerateContractPdf crea una versión visual sin mover saldos ni pagos', () => {
   seedContract({
     version: 4,

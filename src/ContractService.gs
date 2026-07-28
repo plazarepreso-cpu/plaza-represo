@@ -153,6 +153,8 @@ function createContract(payload) {
       folderId: folder.getId(),
       currentPdfFileId: '',
       calendarEventId: '',
+      calendarSyncStatus: 'PENDIENTE',
+      calendarError: '',
       createdBy: user.email,
       updatedBy: user.email,
       cancelReason: ''
@@ -202,8 +204,12 @@ function createContract(payload) {
     let calendarPending = false;
     try {
       contract.calendarEventId = createCalendarEvent_(contract);
+      contract.calendarSyncStatus = 'SINCRONIZADO';
+      contract.calendarError = '';
     } catch (calendarError) {
       calendarPending = true;
+      contract.calendarSyncStatus = 'PENDIENTE';
+      contract.calendarError = String(calendarError.message || calendarError).slice(0, 500);
       try { audit_('CALENDARIO_PENDIENTE', 'Contrato', contractId, { message: calendarError.message }); } catch (ignored) {}
     }
     contract.updatedAt = nowIso_();
@@ -284,8 +290,12 @@ function updateContract(payload) {
     let calendarPending = false;
     try {
       updated.calendarEventId = updateCalendarEvent_(updated);
+      updated.calendarSyncStatus = 'SINCRONIZADO';
+      updated.calendarError = '';
     } catch (calendarError) {
       calendarPending = true;
+      updated.calendarSyncStatus = 'PENDIENTE';
+      updated.calendarError = String(calendarError.message || calendarError).slice(0, 500);
       try { audit_('CALENDARIO_PENDIENTE', 'Contrato', existing.id, { message: calendarError.message }); } catch (ignored) {}
     }
     const saved = updateObject_('Contratos', 'id', existing.id, updated);
@@ -466,10 +476,16 @@ function addPayment(payload) {
       financialApplied = true;
       try {
         const calendarEventId = updateCalendarEvent_(saved);
-        if (calendarEventId && String(calendarEventId) !== String(saved.calendarEventId || '')) {
-          saved = updateObject_('Contratos', 'id', contract.id, { calendarEventId });
-        }
+        saved = updateObject_('Contratos', 'id', contract.id, {
+          calendarEventId,
+          calendarSyncStatus: 'SINCRONIZADO',
+          calendarError: ''
+        });
       } catch (calendarError) {
+        saved = updateObject_('Contratos', 'id', contract.id, {
+          calendarSyncStatus: 'PENDIENTE',
+          calendarError: String(calendarError.message || calendarError).slice(0, 500)
+        });
         try { audit_('CALENDARIO_PENDIENTE', 'Contrato', contract.id, { message: calendarError.message }); } catch (ignored) {}
       }
     }
@@ -494,6 +510,48 @@ function addPayment(payload) {
       } catch (ignored) {}
     }
     throw error;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function repairContractCalendar(payload) {
+  const user = requireOwner_();
+  const data = payload || {};
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    ensureSchema_();
+    const contract = findObject_('Contratos', 'id', data.id);
+    if (!contract) throw new Error('No se encontró el contrato.');
+    if (!['CONFIRMADO', 'PAGADO'].includes(String(contract.status))) {
+      throw new Error('Solo se puede sincronizar un contrato vigente.');
+    }
+    try {
+      const calendarEventId = updateCalendarEvent_(contract);
+      const saved = updateObject_('Contratos', 'id', contract.id, {
+        calendarEventId,
+        calendarSyncStatus: 'SINCRONIZADO',
+        calendarError: '',
+        updatedAt: nowIso_(),
+        updatedBy: user.email
+      });
+      if (typeof upsertTeamAgendaCacheRecord_ === 'function') {
+        try { upsertTeamAgendaCacheRecord_(saved); } catch (ignored) {}
+      }
+      try { audit_('REPARAR_CALENDARIO', 'Contrato', contract.id, { calendarEventId }); } catch (ignored) {}
+      return saved;
+    } catch (calendarError) {
+      const message = String(calendarError.message || calendarError).slice(0, 500);
+      updateObject_('Contratos', 'id', contract.id, {
+        calendarSyncStatus: 'PENDIENTE',
+        calendarError: message,
+        updatedAt: nowIso_(),
+        updatedBy: user.email
+      });
+      try { audit_('CALENDARIO_PENDIENTE', 'Contrato', contract.id, { message }); } catch (ignored) {}
+      throw new Error(`Google Calendar no aceptó el evento: ${message}`);
+    }
   } finally {
     lock.releaseLock();
   }

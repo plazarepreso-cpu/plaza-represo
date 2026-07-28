@@ -267,12 +267,34 @@ function listAgendaEvents_() {
 
 function createCalendarEvent_(contract) {
   const dates = eventDates_(contract);
-  const event = getCalendar_().createEvent(calendarTitle_(contract), dates.start, dates.end, {
+  const calendar = getCalendar_();
+  const existing = findCalendarEventForContract_(calendar, contract, dates);
+  if (existing) {
+    existing
+      .setTitle(calendarTitle_(contract))
+      .setTime(dates.start, dates.end)
+      .setDescription(calendarDescription_(contract))
+      .setLocation(APP_CONFIG.VENUE_ADDRESS);
+    addDefaultReminders_(existing);
+    return existing.getId();
+  }
+  const event = calendar.createEvent(calendarTitle_(contract), dates.start, dates.end, {
     description: calendarDescription_(contract),
     location: APP_CONFIG.VENUE_ADDRESS
   });
   addDefaultReminders_(event);
   return event.getId();
+}
+
+function findCalendarEventForContract_(calendar, contract, dates) {
+  const target = String(contract.contractNumber || '').replace(/\D/g, '');
+  if (!target) return null;
+  const start = new Date(dates.start.getTime() - 86400000);
+  const end = new Date(dates.end.getTime() + 86400000);
+  return calendar.getEvents(start, end).find(event => {
+    const combined = `${event.getTitle() || ''}\n${event.getDescription() || ''}`;
+    return String(calendarContractNumber_(combined) || '').replace(/\D/g, '') === target;
+  }) || null;
 }
 
 function updateCalendarEvent_(contract) {

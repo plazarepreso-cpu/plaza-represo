@@ -179,12 +179,24 @@ assert.deepStrictEqual(JSON.parse(JSON.stringify(summary)), {
   errors: 2
 });
 assert.strictEqual(state.agendaSyncs, 1, 'la ejecución diaria sincroniza la agenda compartida');
-assert.deepStrictEqual(state.savedUpdates, [{
-  sheetName: 'Contratos',
-  idColumn: 'id',
-  id: 'contrato-ficticio-evento-nuevo',
-  updates: { calendarEventId: 'evento-ficticio-nuevo' }
-}], 'solo se persiste el identificador de calendario que cambió');
+assert.deepStrictEqual(state.savedUpdates, [
+  {
+    sheetName:'Contratos', idColumn:'id', id:'contrato-ficticio-evento-nuevo',
+    updates:{ calendarEventId:'evento-ficticio-nuevo', calendarSyncStatus:'SINCRONIZADO', calendarError:'' }
+  },
+  {
+    sheetName:'Contratos', idColumn:'id', id:'contrato-ficticio-pagado',
+    updates:{ calendarEventId:'evento-ficticio-pagado', calendarSyncStatus:'SINCRONIZADO', calendarError:'' }
+  },
+  {
+    sheetName:'Contratos', idColumn:'id', id:'contrato-ficticio-error-calendario',
+    updates:{ calendarSyncStatus:'PENDIENTE', calendarError:'Fallo ficticio de calendario' }
+  },
+  {
+    sheetName:'Contratos', idColumn:'id', id:'contrato-ficticio-futuro',
+    updates:{ calendarEventId:'evento-ficticio-futuro', calendarSyncStatus:'SINCRONIZADO', calendarError:'' }
+  }
+], 'la automatización deja explícito si cada contrato quedó sincronizado o pendiente');
 assert.deepStrictEqual(state.calendarUpdates, [
   'contrato-ficticio-evento-nuevo',
   'contrato-ficticio-pagado',
