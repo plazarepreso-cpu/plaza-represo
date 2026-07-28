@@ -29,6 +29,8 @@ assert.match(html, /SIMULADA · NO PERSISTIDA/, 'el demo no afirma que resguarda
 assert.match(html, /delete contract\.ineDataUrl/, 'la imagen no entra al almacenamiento del demo');
 assert.match(html, /payment\.status \|\| 'COMPLETADO'/, 'el historial distingue pagos incompletos o fallidos');
 assert.match(html, /id="accessEmail"[^>]*type="email"[^>]*required/, 'el propietario puede agregar correos desde el panel');
+assert.match(html, /id="accessRole" name="role"/, 'el propietario puede elegir acceso de agenda o propietario completo');
+assert.match(html, /callServer\(isOwnerGrant \? 'grantOwnerAccess' : 'grantViewerAccess'/, 'el panel usa una operación separada para conceder propietario completo');
 assert.match(html, /data-access-action/, 'el propietario puede retirar o restaurar accesos');
 assert.match(html, /id="historicalImportFile"[^>]*accept="application\/json,.json"/, 'el propietario puede seleccionar el historial privado');
 assert.match(html, /callServer\('importHistoricalContracts'/, 'el panel envía únicamente contratos aprobados al importador');

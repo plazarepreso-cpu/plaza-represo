@@ -99,6 +99,22 @@ test('currentUser reconoce al empleado de agenda desde propiedades sin leer la h
   assert.strictEqual(privateUserReads, 0, 'la cuenta de agenda no debe abrir Usuarios ni la hoja privada');
 });
 
+test('currentUser reconoce a un segundo propietario desde propiedades sin leer la hoja privada', () => {
+  activeEmail = 'segundo.propietario@example.com';
+  scriptProperties = {
+    OWNER_EMAIL: 'propietaria.ficticia@example.com',
+    OWNER_EMAILS: JSON.stringify(['propietaria.ficticia@example.com', 'segundo.propietario@example.com']),
+    AGENDA_ONLY_ACCESS_ENABLED: 'true'
+  };
+  privateUserReads = 0;
+
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(context.currentUser_())), {
+    email: 'segundo.propietario@example.com',
+    role: 'PROPIETARIO'
+  });
+  assert.strictEqual(privateUserReads, 0, 'el segundo propietario no debe depender de Usuarios para autenticarse');
+});
+
 test('cuando la agenda exclusiva está activa, una cuenta ajena no cae a la hoja privada', () => {
   activeEmail = 'ajena.ficticia@example.com';
   scriptProperties = {

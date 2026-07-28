@@ -38,10 +38,75 @@ function revokeDataAccess_(email) {
   return revokeAgendaOnlyAccess_(email);
 }
 
+/** Comparte los recursos privados indispensables con una cuenta propietaria. */
+function grantOwnerResourceAccess_(email) {
+  const properties = PropertiesService.getScriptProperties();
+  const resources = [
+    ['la base de datos', properties.getProperty('SPREADSHEET_ID'), id => SpreadsheetApp.openById(id)],
+    ['la carpeta de contratos', properties.getProperty('CONTRACTS_FOLDER_ID'), id => DriveApp.getFolderById(id)],
+    ['el resguardo privado de identificaciones', properties.getProperty('PRIVATE_INE_FOLDER_ID'), id => DriveApp.getFolderById(id)],
+    ['el calendario oficial', properties.getProperty('CALENDAR_ID'), id => CalendarApp.getCalendarById(id)],
+    ['el calendario interno de equipo', properties.getProperty('TEAM_CALENDAR_ID'), id => CalendarApp.getCalendarById(id)]
+  ];
+  const failures = [];
+  resources.forEach(item => {
+    const label = item[0];
+    const id = String(item[1] || '').trim();
+    if (!id) return;
+    try {
+      const resource = item[2](id);
+      if (!resource || typeof resource.addEditor !== 'function') throw new Error('recurso no disponible');
+      resource.addEditor(email);
+    } catch (error) {
+      failures.push(`${label}: ${String(error.message || error)}`);
+    }
+  });
+  if (failures.length) throw new Error(`No se pudo otorgar acceso completo: ${failures.join(' | ')}`);
+}
+
+/**
+ * Concede el rol propietario sin reemplazar al propietario original. Incluye
+ * acceso de edición a la base, documentos, INE y calendarios necesarios para
+ * que la aplicación (executeAs USER_ACCESSING) funcione en esa cuenta.
+ */
+function grantOwnerAccess(payload) {
+  const owner = requireOwner_();
+  const email = normalizeAccessEmail_(payload && payload.email);
+  if (listOwnerEmails_().includes(email)) return listAccessUsers_();
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    ensureSchema_();
+    const existing = listObjects_('Usuarios').find(user =>
+      String(user.email || '').trim().toLowerCase() === email
+    );
+    grantOwnerResourceAccess_(email);
+    setOwnerEmails_(listOwnerEmails_().concat([email]));
+    // Una cuenta que asciende deja de ser invitada de la agenda limitada.
+    try { removeAgendaOnlyGuestFromTeamEvents_(email); } catch (ignored) {}
+    setAgendaOnlyViewerEmails_(listAgendaOnlyViewerEmails_().filter(value => value !== email));
+    if (existing) {
+      updateObject_('Usuarios', 'email', existing.email, {
+        email,
+        role: APP_CONFIG.ROLE_OWNER,
+        active: true
+      });
+    } else {
+      appendObject_('Usuarios', { email, role: APP_CONFIG.ROLE_OWNER, active: true });
+    }
+    try { audit_('CONCEDER_PROPIETARIO', 'Usuario', email, { grantedBy: owner.email }); }
+    catch (ignored) {}
+    return listAccessUsers_();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function grantViewerAccess(payload) {
   const owner = requireOwner_();
   const email = normalizeAccessEmail_(payload && payload.email);
-  if (email === owner.email) throw new Error('La cuenta propietaria ya tiene acceso total.');
+  if (listOwnerEmails_().includes(email)) throw new Error('La cuenta propietaria ya tiene acceso total.');
 
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -86,7 +151,7 @@ function grantViewerAccess(payload) {
 function revokeViewerAccess(payload) {
   const owner = requireOwner_();
   const email = normalizeAccessEmail_(payload && payload.email);
-  if (email === owner.email) throw new Error('No puedes retirar el acceso de la cuenta propietaria.');
+  if (listOwnerEmails_().includes(email)) throw new Error('No puedes retirar el acceso de la cuenta propietaria.');
 
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);

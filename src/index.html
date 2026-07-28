@@ -360,17 +360,18 @@
         </section>
 
         <section class="view owner-only" id="view-access">
-          <div class="page-head"><div><h3>Accesos del equipo</h3><p>El propietario decide qué correos pueden abrir la agenda segura desde cualquier celular o computadora.</p></div></div>
+          <div class="page-head"><div><h3>Accesos del equipo</h3><p>El propietario decide qué correos reciben agenda segura o acceso completo al panel.</p></div></div>
           <div class="warning" id="accessMigrationWarning" hidden></div>
           <div class="grid dashboard-grid">
             <form class="card form-card" id="accessForm">
               <div class="card-head"><h4>Agregar o restaurar acceso</h4></div>
               <div class="card-body form-grid">
-                <div class="field full"><label for="accessEmail">Correo del empleado</label><input id="accessEmail" name="email" type="email" required autocomplete="off" placeholder="empleado@ejemplo.com"></div>
-                <div class="field full"><button class="btn btn-primary" type="submit" style="width:100%">Dar acceso de consulta</button></div>
+                <div class="field full"><label for="accessEmail">Correo</label><input id="accessEmail" name="email" type="email" required autocomplete="off" placeholder="empleado@ejemplo.com"></div>
+                <div class="field full"><label for="accessRole">Tipo de acceso</label><select id="accessRole" name="role"><option value="CONSULTA">Solo agenda</option><option value="PROPIETARIO">Propietario completo — contratos, pagos, clientes, INE y accesos</option></select></div>
+                <div class="field full"><button class="btn btn-primary" type="submit" style="width:100%" id="grantAccessButton">Dar acceso</button></div>
               </div>
             </form>
-            <div class="card"><div class="card-head"><h4>Cuentas autorizadas</h4></div><div class="card-body"><p style="color:var(--muted);margin-top:0">Los empleados abren la agenda segura dentro del panel. No reciben contratos, INE, archivos ni opciones de edición.</p></div></div>
+            <div class="card"><div class="card-head"><h4>Cuentas autorizadas</h4></div><div class="card-body"><p style="color:var(--muted);margin-top:0">Solo agenda: próximos eventos, cliente, nota y saldo. Propietario completo: todos los datos, documentos, INE, pagos y administración de accesos.</p></div></div>
           </div>
           <div class="card table-wrap" style="margin-top:18px"><table class="data"><thead><tr><th>Correo</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody id="accessBody"></tbody></table></div>
         </section>
@@ -786,6 +787,15 @@
         const existing = db.users.find(user => String(user.email || '').toLowerCase() === email);
         if (existing) Object.assign(existing, { role:'CONSULTA', active:true });
         else db.users.push({ email, role:'CONSULTA', active:true });
+        saveMock(db);
+        return db.users;
+      }
+      if (method === 'grantOwnerAccess') {
+        const email = String(payload.email || '').trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Indica un correo electrónico válido.');
+        const existing = db.users.find(user => String(user.email || '').toLowerCase() === email);
+        if (existing) Object.assign(existing, { role:'PROPIETARIO', active:true });
+        else db.users.push({ email, role:'PROPIETARIO', active:true });
         saveMock(db);
         return db.users;
       }
@@ -1386,10 +1396,10 @@
       document.getElementById('accessBody').innerHTML = users.map(user => {
         const isOwner = user.role === 'PROPIETARIO';
         const active = user.active === true || String(user.active).toLowerCase() === 'true';
-        const action = isOwner
-          ? '<span style="color:var(--muted)">Cuenta principal</span>'
+      const action = isOwner
+          ? '<span style="color:var(--muted)">Propietario</span>'
           : `<button class="btn ${active ? 'btn-danger' : 'btn-ghost'} btn-small" type="button" data-access-action="${active ? 'revoke' : 'grant'}" data-access-email="${escapeHtml(user.email)}">${active ? 'Retirar' : 'Restaurar'}</button>`;
-        return `<tr><td><strong>${escapeHtml(user.email)}</strong></td><td>${isOwner ? 'Propietario' : 'Solo consulta'}</td><td><span class="status ${active ? 'CONFIRMADO' : 'CANCELADO'}">${active ? 'ACTIVO' : 'INACTIVO'}</span></td><td>${action}</td></tr>`;
+        return `<tr><td><strong>${escapeHtml(user.email)}</strong></td><td>${isOwner ? 'Propietario completo' : 'Solo agenda'}</td><td><span class="status ${active ? 'CONFIRMADO' : 'CANCELADO'}">${active ? 'ACTIVO' : 'INACTIVO'}</span></td><td>${action}</td></tr>`;
       }).join('') || '<tr><td colspan="4" class="empty">No hay cuentas registradas.</td></tr>';
     }
 
@@ -1974,12 +1984,14 @@
     accessForm.addEventListener('submit', async event => {
       event.preventDefault();
       const payload = Object.fromEntries(new FormData(event.target).entries());
-      showLoading('Compartiendo acceso de consulta…');
+      const isOwnerGrant = payload.role === 'PROPIETARIO';
+      if (isOwnerGrant && !window.confirm(`¿Dar acceso completo a ${payload.email}? Podrá ver y modificar contratos, pagos, clientes, INE y accesos del equipo.`)) return;
+      showLoading(isOwnerGrant ? 'Otorgando acceso completo…' : 'Compartiendo acceso de consulta…');
       try {
-        await callServer('grantViewerAccess', payload);
+        await callServer(isOwnerGrant ? 'grantOwnerAccess' : 'grantViewerAccess', payload);
         state.formDirty.access = false;
         event.target.reset();
-        await loadLatest({ message:'Acceso de consulta actualizado.' });
+        await loadLatest({ message:isOwnerGrant ? 'Acceso completo actualizado.' : 'Acceso de consulta actualizado.' });
       } catch (error) {
         toast(error.message, true);
       } finally {

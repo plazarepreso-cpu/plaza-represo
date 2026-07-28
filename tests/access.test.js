@@ -8,6 +8,7 @@ const state = {
   guestAddCalls: 0,
   guestRemoveCalls: 0,
   privateResourceCalls: 0,
+  ownerResourceGrants: [],
   audits: [],
   lockWaits: [],
   lockReleases: 0,
@@ -115,6 +116,7 @@ context.revokeAgendaOnlyAccess_ = email => {
   );
   return { emails };
 };
+context.grantOwnerResourceAccess_ = email => { state.ownerResourceGrants.push(email); };
 
 let passed = 0;
 function test(name, callback) {
@@ -185,6 +187,21 @@ test('la cuenta propietaria no puede retirarse ni degradarse', () => {
     () => context.grantViewerAccess({ email:'propietaria.ficticia@example.com' }),
     /cuenta propietaria/
   );
+});
+
+test('un propietario puede otorgar acceso completo a una segunda cuenta sin perder la principal', () => {
+  const email = 'segundo.propietario@example.com';
+  const users = context.grantOwnerAccess({ email });
+  assert.deepStrictEqual(state.ownerResourceGrants, [email]);
+  assert.deepStrictEqual(JSON.parse(state.properties.OWNER_EMAILS), [
+    'propietaria.ficticia@example.com', email
+  ]);
+  assert.strictEqual(context.listAgendaOnlyViewerEmails_().includes(email), false);
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(users.find(user => user.email === email))),
+    { email, role:'PROPIETARIO', active:true }
+  );
+  assert.strictEqual(state.audits.at(-1).action, 'CONCEDER_PROPIETARIO');
 });
 
 test('si falla la invitación como huésped, no se autoriza la cuenta', () => {

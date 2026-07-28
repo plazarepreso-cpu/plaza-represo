@@ -108,6 +108,7 @@ function setupSystem_(ownerEmail, employeeEmail) {
       CALENDAR_ID: calendar.getId(),
       TEAM_CALENDAR_ID: teamCalendar.getId(),
       OWNER_EMAIL: owner,
+      OWNER_EMAILS: JSON.stringify([owner]),
       TIME_ZONE: APP_CONFIG.TIME_ZONE
     });
 

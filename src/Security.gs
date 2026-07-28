@@ -1,5 +1,32 @@
 const TEAM_VIEWERS_PROPERTY_ = 'TEAM_VIEWER_EMAILS';
 const AGENDA_ONLY_ACCESS_ENABLED_PROPERTY_ = 'AGENDA_ONLY_ACCESS_ENABLED';
+const OWNER_EMAILS_PROPERTY_ = 'OWNER_EMAILS';
+
+/**
+ * Conserva compatibilidad con la instalación original de un solo propietario
+ * y permite propietarios adicionales sin depender de la hoja privada para
+ * autorizar la primera carga del panel.
+ */
+function listOwnerEmails_() {
+  const properties = PropertiesService.getScriptProperties();
+  const legacyOwner = String(properties.getProperty('OWNER_EMAIL') || '').trim().toLowerCase();
+  let configured = [];
+  try { configured = JSON.parse(String(properties.getProperty(OWNER_EMAILS_PROPERTY_) || '[]')); }
+  catch (error) { configured = []; }
+  const values = Array.isArray(configured) ? configured : [];
+  return Array.from(new Set([legacyOwner].concat(values)
+    .map(value => String(value || '').trim().toLowerCase())
+    .filter(email => email && email.includes('@'))));
+}
+
+function setOwnerEmails_(emails) {
+  const normalized = Array.from(new Set((emails || [])
+    .map(value => String(value || '').trim().toLowerCase())
+    .filter(email => email && email.includes('@'))));
+  if (!normalized.length) throw new Error('Debe permanecer al menos una cuenta propietaria.');
+  PropertiesService.getScriptProperties().setProperty(OWNER_EMAILS_PROPERTY_, JSON.stringify(normalized));
+  return normalized;
+}
 
 /**
  * La lista de consulta vive fuera de la base privada. Así una persona que solo
@@ -41,8 +68,7 @@ function currentUser_() {
   }
 
   const properties = PropertiesService.getScriptProperties();
-  const ownerEmail = String(properties.getProperty('OWNER_EMAIL') || '').trim().toLowerCase();
-  if (ownerEmail && email === ownerEmail) return { email, role: APP_CONFIG.ROLE_OWNER };
+  if (listOwnerEmails_().includes(email)) return { email, role: APP_CONFIG.ROLE_OWNER };
 
   // Esta comprobación nunca abre la hoja privada. Es la ruta segura de las
   // cuentas de consulta después de retirarles Drive y Sheets.
